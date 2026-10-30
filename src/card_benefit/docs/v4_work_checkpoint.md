@@ -1,8 +1,27 @@
 # 카드 혜택 GraphRAG 발표 PPT V4 — 작업 체크포인트
 
-- 작성: 2026-10-30, Claude Code 세션 (중간 저장)
-- 상태: **V4 PPTX와 발표 노트는 아직 생성 전.** 자료 조사·사실 확인·슬라이드 설계까지 완료.
-- 다음 세션이 할 일: 아래 §5 설계대로 `ppt_build/build_v4.js`를 작성 → 렌더링 QA → 노트 문서 작성.
+- 작성: 2026-10-30, Claude Code 세션 (중간 저장) · **갱신: 2026-10-30 (V5 완성 후)**
+- 상태: **V4·V4.1·V4.2·V5 PPTX·발표 노트 완성.** 브랜치 `docs/card-benefit-ppt-v4`에서 작업 중이며 main 미병합.
+- 발표에 쓸 최신본: **V5** (`card_benefit_graphrag_presentation_v5.pptx` + `_v5_notes.md`, 본문 13 + 부록 7 = 20장). V4~V4.2는 보존본.
+- V5 범위 원칙: '판단' = 공식 약관의 조건·적용 범위 분석(개인 혜택 수령 여부 판단 아님). 신한 두 발표는 별개·기술 방식 미확인. SQL 대비 우위 단정 안 함. 외부 AI 최종 답변은 MCP 로그만으로 검증 불가.
+- (이전) V4.2:
+- V4.2 표지 질문: "고객이 AI에게 카드 혜택을 물으면, 누가 정확한 정보를 제공할까요?" / 핵심 메시지: "AI는 고객과 대화하고, 카드사는 공식 판단 정보와 근거를 공급합니다." / 다음 질문: "그런데 AI에 공급하는 혜택 판단 정보는, 어떻게 정확성을 검증할 수 있을까요?"
+- 다음 할 일: §8 남은 과제 참고. 아래 §5는 V4 구현 당시의 설계안이며 그대로 구현됐다(본문 16 + 부록 7 = 23장).
+
+## 0. 현재 상태 요약 (갱신)
+
+| 항목 | 상태 |
+|---|---|
+| V4 PPT | `card_benefit_graphrag_presentation_v4.pptx` — 23장, `validate.py` 통과, 전 장 렌더링 확인 |
+| V4 노트 | `card_benefit_graphrag_presentation_v4_notes.md` — 슬라이드별 목적·상태·예상 반박·대본 + 자기 검토 |
+| V4.1 PPT | `card_benefit_graphrag_presentation_v4_1.pptx` — V4 노트 검토 반영(표지 MCP 예고, 신한→MCP 연결, 외부 AI 최종 답변 추적 범위 명시). 23장, `validate.py` 통과, 변경 장 렌더링 확인 |
+| V4.1 노트 | `card_benefit_graphrag_presentation_v4_1_notes.md` — V4→V4.1 변경표, 흐름 검토, 외부 AI 검증 범위 표 포함 |
+| V4.2 PPT | `card_benefit_graphrag_presentation_v4_2.pptx` — 표지를 외부 AI ↔ 카드사 MCP·판단 엔진 공급 구조의 문제 제기로 교체, 신한 사례 2쪽·정확성 검증 질문 3쪽으로 재배치, V4 표지의 상품권 오답 대화는 12쪽 시연으로 이동. 23장, `validate.py` 통과, 변경 장 렌더링 확인 |
+| V4.2 노트 | `card_benefit_graphrag_presentation_v4_2_notes.md` — V4.1→V4.2 변경표, 앞부분 흐름표, 표지에서 지킬 표현 |
+| V5 PPT | `card_benefit_graphrag_presentation_v5.pptx` — 사업 목적(외부 AI에 공식 혜택 정보 제공) → 실제 약관 복잡성 → PDF 추출 검증 → GraphRAG 구조·사용 장면·변경 영향 → SQL·RAG 공정 비교 → 단계별 검증 → MCP → 진행 현황 → 결론. 20장, `validate.py` 통과, 전 장 렌더링 확인 |
+| V5 노트 | `card_benefit_graphrag_presentation_v5_notes.md` — 흐름표, 상태 배지 정의, 범위 원칙, V4·V4.2 대비 변경, 자체 평가. PPT 노트와 20장 모두 일치 |
+| 생성 스크립트 | `ppt_build/build_v2_base.js`(V2 기준, 보존) · `build_v4.js` · `build_v4_1.js` · `build_v4_2.js` · `build_v5.js` |
+| V3 오류 정정 | 표지 "대중교통 5% 할인" → "5% 캐시백, 월 최대 1천원" (V4부터 반영, V3 파일은 그대로) |
 
 ---
 
@@ -70,11 +89,21 @@
 | 구분 | 경로 | 상태 |
 |---|---|---|
 | V3 PPT (기준, 수정 금지) | `src/card_benefit/docs/card_benefit_graphrag_presentation_v3.pptx` | 보존 |
-| V4 PPT (목표) | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4.pptx` | **미생성** |
-| V4 발표 노트 (목표) | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_notes.md` | **미생성** |
+| V4 PPT | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4.pptx` | 완성 · 보존 |
+| V4 발표 노트 | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_notes.md` | 완성 · 보존 |
+| V4.1 PPT | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_1.pptx` | 완성 |
+| V4.1 발표 노트 | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_1_notes.md` | 완성 |
 | 기준 생성 스크립트 | `src/card_benefit/docs/ppt_build/build_v2_base.js` | 보존 (V2 생성용, 수정하지 말고 복사해서 사용) |
-| V4 생성 스크립트 (목표) | `src/card_benefit/docs/ppt_build/build_v4.js` | **미작성** |
+| V4 생성 스크립트 | `src/card_benefit/docs/ppt_build/build_v4.js` | V4 PPT와 슬라이드 텍스트·노트가 동일하게 재생성됨을 확인 |
+| V4.1 생성 스크립트 | `src/card_benefit/docs/ppt_build/build_v4_1.js` | `build_v4.js` 복사본에 V4.1 수정 반영 |
+| V4.2 PPT | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_2.pptx` | 완성 |
+| V4.2 발표 노트 | `src/card_benefit/docs/card_benefit_graphrag_presentation_v4_2_notes.md` | 완성 |
+| V4.2 생성 스크립트 | `src/card_benefit/docs/ppt_build/build_v4_2.js` | `build_v4_1.js` 복사본에 V4.2 수정 반영 |
+| **V5 PPT (최신)** | `src/card_benefit/docs/card_benefit_graphrag_presentation_v5.pptx` | 완성 |
+| **V5 발표 노트 (최신)** | `src/card_benefit/docs/card_benefit_graphrag_presentation_v5_notes.md` | 완성 |
+| V5 생성 스크립트 | `src/card_benefit/docs/ppt_build/build_v5.js` | 신규 작성 (헬퍼는 `build_v4_2.js`에서) |
 | npm 설정 | `src/card_benefit/docs/ppt_build/package.json` | pptxgenjs ^3.12.0 |
+| ppt_build 무시 목록 | `src/card_benefit/docs/ppt_build/.gitignore` | `node_modules/`, `render/`, `out/`, `*.pdf`, `*.png`, `*.jpg` |
 | 이 체크포인트 | `src/card_benefit/docs/v4_work_checkpoint.md` | — |
 
 참고 자료: `ppt_story_key_points.md`(V1), `ppt_story_key_points_v2_draft.md`(V2), `과제_매핑표_10.29.md`,
@@ -90,11 +119,15 @@
 ```powershell
 git pull
 cd src/card_benefit/docs/ppt_build
-npm install                       # node_modules는 .gitignore 대상
-copy build_v2_base.js build_v4.js  # 처음 한 번. 이후 build_v4.js를 §5대로 수정
-$env:PPTX_SKILL = "<pptx 스킬 디렉터리>"   # build 스크립트가 $PPTX_SKILL/scripts/apply_theme.js 를 require
-node build_v4.js ..\card_benefit_graphrag_presentation_v4.pptx
+npm install                       # node_modules는 ppt_build/.gitignore 대상
+$env:PPTX_SKILL = "<pptx 스킬 디렉터리>"   # 선택. 지정하면 테마 색 적용(apply_theme.js)
+node build_v5.js ..\card_benefit_graphrag_presentation_v5.pptx [노트본문.md]
 ```
+
+- `build_v4.js`·`build_v4_1.js`·`build_v4_2.js`·`build_v5.js`는 `PPTX_SKILL`이 없어도 실행된다(테마 색 적용만 건너뜀). `build_v2_base.js`는 여전히 `PPTX_SKILL`이 필요하다.
+- 두 번째 인자를 주면 슬라이드별 노트 본문(목적·상태·예상 반박·대본)을 Markdown으로 쓴다. 최종 노트 문서는 이 본문 앞뒤에 머리말·자기 검토를 붙인 것이다.
+- 기존 V4~V5 파일을 덮어쓰지 않으려면 출력 경로를 새 이름(예: `_v5_1.pptx`)으로 준다.
+- Windows에서는 스킬의 `soffice.py`가 `AF_UNIX` 오류로 동작하지 않는다. `"C:\Program Files\LibreOffice\program\soffice.exe" --headless --convert-to pdf <파일>`을 직접 쓴다.
 
 - `PPTX_SKILL`: Claude Code의 `anthropic-skills:pptx` 스킬 폴더. 이 컴퓨터에서는
   `C:\Users\KBJ\.claude\skills\synced\0e4167d7-...\pptx` 였다. 새 컴퓨터에서는 스킬을 로드하면 "Base directory"로 경로가 표시된다.
@@ -175,7 +208,11 @@ V3 문구를 기준으로 삼는다(V3 텍스트는 V2 스크립트 문구와 �
 
 ## 7. 다른 컴퓨터에서 재개할 때 Claude Code에 줄 지시
 
-아래를 그대로 붙여 넣으면 된다.
+> **갱신 메모:** 아래 지시문은 V4 생성 전에 쓴 것이다. V4·V4.1은 완성됐으므로, 이후 수정은
+> `git switch docs/card-benefit-ppt-v4` → `ppt_build/build_v5.js`를 새 이름(예: `build_v5_1.js`)으로 복사해 수정 →
+> 새 파일명으로 출력하는 방식으로 진행한다. 기존 V1~V5 파일은 덮어쓰지 않는다.
+
+(V4 생성 당시 지시문, 기록용)
 
 ```
 src/card_benefit/docs/v4_work_checkpoint.md 를 먼저 읽고 V4 PPT 작업을 이어서 해 줘.
@@ -206,3 +243,26 @@ src/card_benefit/docs/v4_work_checkpoint.md 를 먼저 읽고 V4 PPT 작업을 �
 
 V4 PPT 경로 / 노트 경로 / 슬라이드 수와 목차 / V3→V4 핵심 변경 / 기획 의도 강화 슬라이드 /
 구현·검증 완료 vs 향후 계획 / 렌더링·PPT 오류 검증 결과 / 남은 약점과 추가 검증 과제
+
+---
+
+## 8. 남은 과제 (2026-10-30 갱신)
+
+1. 실제 LLM으로 V5 부록 D 질문(상품권 실적 제외 사례)을 실행해 실제 오답 여부 확인 → 가상 시나리오를 실제 로그로 교체
+2. 하나카드 추가 약 6종 선정(공식 상품설명서 확인 후)과 8개 비교 축 원문 대조
+3. trace 저장 구조(JudgmentRun)·evidence/trace id 최소 구현
+4. 부록 C 비교 실험(최소: 근거 경로 일치율, 오류 원인 단계 식별률)
+5. STYLE 15650_20260316판과 20260429판 차이 대조
+6. 외부 AI 플랫폼(예: 카카오 PlayMCP)이 도구 호출 요청·응답 기록을 제공하는지 확인 — V4.1 14쪽 '조건부' 범위의 전제
+7. PowerPoint에서 V5를 열어 줄바꿈 확인(렌더링 QA는 LibreOffice 기준)
+8. 단위 테스트 실행 결과 확인(테스트 DB 환경) — V5 12쪽 '구현 완료'는 코드 존재 기준
+
+## 9. 작업 이력
+
+| 날짜 | 내용 |
+|---|---|
+| 2026-10-30 | V4 설계·체크포인트 작성 (커밋 f02bbdb) |
+| 2026-10-30 | V4 PPT·노트 생성, `ppt_build` 삭제 (커밋 647bf9f, 브랜치 `docs/card-benefit-ppt-v4`) |
+| 2026-10-30 | `ppt_build` 복구: `build_v2_base.js`·`package.json`·`.gitignore`는 f02bbdb에서, `build_v4.js`는 Claude Code 파일 기록 스냅숏에서 복원(재생성 결과가 V4와 동일함을 확인). V4.1 수정본·노트 작성, 이 문서 갱신 |
+| 2026-10-30 | V4.2: 표지를 "누가 정확한 정보를 제공하는가" + 외부 AI → 카드사 MCP → GraphRAG 엔진 → 근거 반환 → 고객 답변 흐름으로 교체, 신한 사례 2쪽·정확성 검증 질문 3쪽, 상품권 오답 대화는 12쪽 시연으로 이동 |
+| 2026-10-30 | V5: 본문 13 + 부록 7. 사업 목적 도입, 신한 원제목·미확인 명시, 실제 약관 사례(3·4쪽), PDF 검증(5쪽), 공정 비교(9쪽, 우열 기호 삭제), 카드별 규칙 분리 모델(8쪽·부록 B), 개인 적격성 표현 삭제, 저장소 재확인 기반 진행 현황(12쪽) |

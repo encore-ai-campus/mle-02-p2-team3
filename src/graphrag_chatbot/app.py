@@ -6,6 +6,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 import rag
+import timing
 from graph_view import build_html
 
 st.set_page_config(page_title="GraphRAG 챗봇", layout="centered")
@@ -74,6 +75,7 @@ def run_turn(question: str, conv: dict) -> bool:
     history = [(t["q"], t["answer"]) for t in conv["turns"]]
     with st.chat_message("user"):
         st.write(question)
+    timing.start(question)
     with st.chat_message("assistant"):
         try:
             with st.status("질의 분석 중…", expanded=True) as status:
@@ -87,6 +89,7 @@ def run_turn(question: str, conv: dict) -> bool:
                 status.update(label="검색 완료", state="complete", expanded=False)
             text = st.write_stream(rag.generate_stream(question, sub, history))
         except Exception as e:  # 환경 변수 누락, 연결 실패 등
+            timing.finish(ok=False, error=type(e).__name__)
             st.error(f"처리 중 오류가 발생했습니다: {e}")
             return False
         turn = {

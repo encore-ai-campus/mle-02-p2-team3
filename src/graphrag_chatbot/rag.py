@@ -1,23 +1,20 @@
 """GraphRAG 핵심 로직 (Supabase/PostgreSQL 버전). UI(Streamlit)와 분리되어 있어서 나중에 FastAPI 등으로 옮겨도 그대로 씁니다.
 
 흐름: 질의 분석(엔티티 선택) -> 그래프 탐색(PostgreSQL 재귀 쿼리) -> 답변 생성(LLM, 스트리밍)
-그래프는 nodes(id, name, label, props)와 edges(source, target, type) 테이블에 저장됩니다. supabase_schema.sql 참고.
+그래프는 graphrag.nodes(id, name, label, props)와 graphrag.edges(source, target, type) 테이블에 저장됩니다. supabase_schema.sql 참고.
+DB 연결과 테이블 이름은 db.py가 맡습니다.
 하위 그래프 형식: {"nodes": [...], "edges": [...], "seeds": [...]}
 """
 import json
-import os
 import re
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Iterator
 
-import psycopg
-from dotenv import load_dotenv
-from psycopg.rows import dict_row
-
+import db
 import llm
-
-load_dotenv()
+import timing
 
 MAX_HOPS = 3
 MAX_NODES = 40
@@ -36,17 +33,17 @@ ANSWER_SYSTEM = (
 )
 
 # 시작 노드에서 hops 거리 안의 노드를 방향 없이 따라갑니다. (UNION이라 순환이 있어도 depth로 멈춥니다)
-REACH_SQL = """
+REACH_SQL = f"""
 with recursive reach(id, depth) as (
-  select id, 0 from nodes where name = any(%(names)s)
+  select id, 0 from {db.NODES} where name = any(%(names)s)
   union
   select case when e.source = r.id then e.target else e.source end, r.depth + 1
   from reach r
-  join edges e on e.source = r.id or e.target = r.id
+  join {db.EDGES} e on e.source = r.id or e.target = r.id
   where r.depth < %(hops)s
 )
 select n.id::text as id, n.name, n.label, n.props
-from nodes n
+from {db.NODES} n
 where n.id in (select id from reach)
 limit %(limit)s
 """
@@ -59,25 +56,10 @@ class Analysis:
     intent: str = ""
 
 
-def run_query(query: str, params: dict | None = None) -> list[dict]:
-    """읽기 전용 조회. 호출마다 연결을 열고 닫아서 끊긴 연결 문제가 없습니다."""
-    url = os.getenv("DB_URL")
-    if not url:
-        raise RuntimeError("DB_URL 환경 변수가 없습니다. .env 파일을 확인하세요.")
-    # prepare_threshold=None: Supabase 트랜잭션 풀러(pgbouncer)는 prepared statement를 지원하지 않습니다.
-    with psycopg.connect(
-        url,
-        autocommit=True,
-        row_factory=dict_row,
-        prepare_threshold=None,
-        connect_timeout=10,
-    ) as conn:
-        return conn.execute(query, params or {}).fetchall()
-
-
 def list_entities() -> list[dict]:
     """질의 분석에 쓸 엔티티 목록. 그래프가 크면 전문 검색이나 pgvector 검색으로 바꾸세요."""
-    rows = run_query("select name, label from nodes order by name limit 500")
+    with timing.stage("entities_db"):
+        rows = db.run_query(f"select name, label from {db.NODES} order by name limit 500")
     return [{"name": r["name"], "label": r["label"]} for r in rows]
 
 
@@ -92,7 +74,8 @@ def analyze(question: str, entities: list[dict]) -> Analysis:
     picked: list[str] = []
     hops, intent = 1, ""
     try:
-        raw = llm.complete(ANALYZE_SYSTEM, f"질문: {question}\n\n엔티티 목록: {listing}")
+        with timing.stage("analyze_llm"):
+            raw = llm.complete(ANALYZE_SYSTEM, f"질문: {question}\n\n엔티티 목록: {listing}")
         data = _parse_json(raw)
         picked = [n for n in data.get("entities", []) if n in known]
         hops = int(data.get("hops", 1))
@@ -119,16 +102,21 @@ def _node_dict(row: dict) -> dict:
 
 
 def explore(analysis: Analysis) -> dict:
-    """엔티티에서 hops 거리 안의 노드와, 그 노드들 사이의 관계를 가져옵니다."""
+    """엔티티에서 hops 거리 안의 노드와, 그 노드들 사이의 관계를 가져옵니다. (구간 시간은 timing.stage로 잽니다)"""
+    with timing.stage("explore_db"):
+        return _explore(analysis)
+
+
+def _explore(analysis: Analysis) -> dict:
     empty = {"nodes": [], "edges": [], "seeds": []}
     if not analysis.entities:
         return empty
     hops = max(1, min(int(analysis.hops), MAX_HOPS))
-    seed_rows = run_query(
-        "select id::text as id, name, label, props from nodes where name = any(%(names)s)",
+    seed_rows = db.run_query(
+        f"select id::text as id, name, label, props from {db.NODES} where name = any(%(names)s)",
         {"names": analysis.entities},
     )
-    reach_rows = run_query(
+    reach_rows = db.run_query(
         REACH_SQL, {"names": analysis.entities, "hops": hops, "limit": MAX_NODES}
     )
     nodes: dict[str, dict] = {}
@@ -144,8 +132,8 @@ def explore(analysis: Analysis) -> dict:
         return empty
     ids = [n["id"] for n in node_list]
     id_array = [uuid.UUID(i) for i in ids]
-    edge_rows = run_query(
-        "select source::text as source, target::text as target, type from edges "
+    edge_rows = db.run_query(
+        f"select source::text as source, target::text as target, type from {db.EDGES} "
         "where source = any(%(ids)s) and target = any(%(ids)s)",
         {"ids": id_array},
     )
@@ -174,16 +162,31 @@ def format_facts(sub: dict) -> str:
 
 def generate_stream(question: str, sub: dict, history=None) -> Iterator[str]:
     """답변을 토큰 단위로 내보냅니다. history는 [(질문, 답변), ...] 형식입니다."""
-    if not sub["nodes"]:
-        yield "그래프에서 관련 정보를 찾지 못했습니다. 질문에 포함된 서비스나 팀 이름을 확인해 주세요."
-        return
-    messages: list[dict] = []
-    for q, a in (history or [])[-2:]:
-        messages += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
-    messages.append(
-        {"role": "user", "content": f"그래프 근거:\n{format_facts(sub)}\n\n질문: {question}"}
-    )
-    yield from llm.stream(ANSWER_SYSTEM, messages)
+    t_req = time.perf_counter()
+    first_at = None
+    ok = False
+    try:
+        if not sub["nodes"]:
+            yield "그래프에서 관련 정보를 찾지 못했습니다. 질문에 포함된 서비스나 팀 이름을 확인해 주세요."
+            ok = True
+            return
+        messages: list[dict] = []
+        for q, a in (history or [])[-2:]:
+            messages += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
+        messages.append(
+            {"role": "user", "content": f"그래프 근거:\n{format_facts(sub)}\n\n질문: {question}"}
+        )
+        for chunk in llm.stream(ANSWER_SYSTEM, messages):
+            if first_at is None:
+                first_at = time.perf_counter()
+                timing.mark("first_token", (first_at - t_req) * 1000)
+            yield chunk
+        ok = True
+    finally:
+        # 끝까지 소비되지 않고 닫혀도(화면 이동 등) 지금까지의 시간을 남깁니다.
+        if first_at is not None:
+            timing.mark("stream", (time.perf_counter() - first_at) * 1000)
+        timing.finish(ok=ok, nodes=len(sub["nodes"]), edges=len(sub["edges"]))
 
 
 def sources(sub: dict) -> list[dict]:
@@ -206,6 +209,7 @@ def steps_text(analysis: Analysis, sub: dict) -> list[str]:
 
 def answer(question: str, history=None) -> dict:
     """UI 없이 한 번에 결과를 받는 함수. API 서버나 테스트에서 씁니다."""
+    timing.start(question)
     analysis = analyze(question, list_entities())
     sub = explore(analysis)
     text = "".join(generate_stream(question, sub, history))

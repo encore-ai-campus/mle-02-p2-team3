@@ -36,3 +36,9 @@ Thumbs.db
 
 # Windows alternate data stream metadata
 *:[Zz]one.[Ii]dentifier
+
+# Card source data collected locally (large ZIPs and manifests; do not commit).
+# Decision: meeting 2026-11-01-카드데이터-공통계약-설계 (D3).
+/src/data/hana_all/
+/src/data/woori_all/
+/src/card_benefit/data/raw/

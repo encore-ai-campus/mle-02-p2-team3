@@ -46,7 +46,7 @@ woori,S-OIL 주유 400 AUTO 우리카드,"{""product_code"": ""500043""}",credit
 woori,S-OIL 주유 400 우리카드,"{""product_code"": ""500039""}",credit,2f72fa31a3d0c423,woori_all/credit/신용_S-OIL주유400우리카드_500039_상품설명서(공식PDF)_g1_2d7603a1.pdf,primary_guide
 woori,SK LPG 화물복지카드,"{""product_code"": ""103757""}",credit,2ab81f896ed5aee9,woori_all/credit/신용_SKLPG화물복지카드_103757_상품설명서(공식PDF)_g1_2be29cf6.pdf,primary_guide
 woori,SK 주유 400 우리카드,"{""product_code"": ""104167""}",credit,83d3fd6eff9a2d64,woori_all/credit/신용_SK주유400우리카드_104167_상품설명서(공식PDF)_g1_b6933550.pdf,primary_guide
-woori,SK 주유 400 우리카드 ,"{""product_code"": ""104183""}",credit,c33e25a43e99d89c,woori_all/credit/신용_SK주유400우리카드_104183_상품설명서(공식PDF)_g1_ca69df4a.pdf,primary_guide
+woori,SK 주유 400 우리카드,"{""product_code"": ""104183""}",credit,c33e25a43e99d89c,woori_all/credit/신용_SK주유400우리카드_104183_상품설명서(공식PDF)_g1_ca69df4a.pdf,primary_guide
 woori,SK인텔릭스 우리카드,"{""product_code"": ""102859""}",credit,48dddea112bbda9e,woori_all/credit/신용_SK인텔릭스우리카드_102859_상품설명서(공식PDF)_g1_cea71def.pdf,primary_guide
 woori,THE SHOPPER,"{""product_code"": ""500102""}",credit,111afa06d93c3df7,woori_all/credit/신용_THESHOPPER_500102_상품설명서(공식PDF)_g1_b712798d.pdf,primary_guide
 woori,THE SHOPPER,"{""product_code"": ""500102""}",common,995ad0b592607712,woori_all/common/공통_브랜드서비스_국제브랜드서비스안내장(2026)_VISA-S_기본_c61c5861.pdf,brand
@@ -152,7 +152,7 @@ woori,카드의정석 WELFARE Allday,"{""product_code"": ""102489""}",credit,0e2
 woori,카드의정석 WELFARE Allday 공무원연금,"{""product_code"": ""104145""}",credit,0e2d49db2171dc8a,woori_all/credit/신용_카드의정석WELFAREAllday공무원연금_104145_상품설명서(공식PDF)_g1_7281bcd6.pdf,shared_guide
 woori,카드의정석 WELFARE DL에프앤씨,"{""product_code"": ""500094""}",credit,79faa76d9380f932,woori_all/credit/신용_카드의정석WELFAREDL에프앤씨_500094_상품설명서(공식PDF)_g1_7ea982c4.pdf,shared_guide
 woori,카드의정석 WELFARE X KORAIL,"{""product_code"": ""103760""}",credit,1f299616f0f23320,woori_all/credit/신용_카드의정석WELFAREXKORAIL_103760_상품설명서(공식PDF)_g1_1d74f8fc.pdf,primary_guide
-woori,카드의정석 WELFARE 한국의약품수출입협회 ,"{""product_code"": ""500120""}",credit,79faa76d9380f932,woori_all/credit/신용_카드의정석WELFARE한국의약품수출입협회_500120_상품설명서(공식PDF)_g1_1b10ef2e.pdf,shared_guide
+woori,카드의정석 WELFARE 한국의약품수출입협회,"{""product_code"": ""500120""}",credit,79faa76d9380f932,woori_all/credit/신용_카드의정석WELFARE한국의약품수출입협회_500120_상품설명서(공식PDF)_g1_1b10ef2e.pdf,shared_guide
 woori,카드의정석 WELFARE 한국해운 개인복지(신용),"{""product_code"": ""102867""}",credit,79faa76d9380f932,woori_all/credit/신용_카드의정석WELFARE한국해운개인복지(신용)_102867_상품설명서(공식PDF)_g1_0a2bd1e2.pdf,shared_guide
 woori,카드의정석 WELFARE+,"{""product_code"": ""102870""}",credit,8877f8230c104b43,woori_all/credit/신용_카드의정석WELFARE+_102870_상품설명서(공식PDF)_g1_4d104eae.pdf,shared_guide
 woori,카드의정석 WELFARE+ 스크린에스피이코리아,"{""product_code"": ""104166""}",credit,8877f8230c104b43,woori_all/credit/신용_카드의정석WELFARE+스크린에스피이코리아_104166_상품설명서(공식PDF)_g1_f8cf6970.pdf,shared_guide
@@ -208,9 +208,10 @@ woori,SK LPG 화물복지카드,"{""product_code"": ""103757""}",credit,2ab81f89
 woori,우리V세이브카드-Smart징검다리,"{""product_code"": ""207829""}",credit,336fbadfa3d078c2,woori_all/credit/(상품안내장) 우리V세이브카드-Smart징검다리.pdf,primary_guide
 woori,D4카드의정석II,"{""product_code"": ""103305""}",credit,67964e07993dae8d,woori_all/credit/(상품안내장)D4카드의정석Ⅱ.pdf,primary_guide
 woori,스타트래블 우리카드,"{""product_code"": ""104171""}",credit,8e2ebaac5088c926,woori_all/credit/(최종) 스타트래블우리카드_상품안내장.pdf,primary_guide
-woori,SK 주유 400 우리카드 ,"{""product_code"": ""104183""}",credit,c33e25a43e99d89c,woori_all/credit/01. [상품안내장] SK 주유 400 우리카드.pdf,primary_guide
+woori,SK 주유 400 우리카드,"{""product_code"": ""104183""}",credit,c33e25a43e99d89c,woori_all/credit/01. [상품안내장] SK 주유 400 우리카드.pdf,primary_guide
 woori,로얄블루1000(대한항공 개인),"{""product_code"": ""225501""}",credit,7e0dabfe258613ca,woori_all/credit/1. 로얄블루1000_202505.pdf,primary_guide
-woori,카드의정석 WELFARE Allday; 카드의정석 WELFARE Allday 공무원연금,"{""product_code"": ""102489; 104145""}",credit,0e2d49db2171dc8a,woori_all/credit/1. 상품안내장.pdf,shared_guide
+woori,카드의정석 WELFARE Allday,"{""product_code"": ""102489""}",credit,0e2d49db2171dc8a,woori_all/credit/1. 상품안내장.pdf,shared_guide
+woori,카드의정석 WELFARE Allday 공무원연금,"{""product_code"": ""104145""}",credit,0e2d49db2171dc8a,woori_all/credit/1. 상품안내장.pdf,shared_guide
 woori,E1 우리카드,"{""product_code"": ""103564""}",credit,d9e43a040258b4b8,woori_all/credit/1. 상품안내장_E1우리카드.pdf,primary_guide
 woori,카드의정석2 EVERY POINT,"{""product_code"": ""102718""}",credit,1b7148014599fb08,woori_all/credit/1. 상품안내장_카드의정석2 EVERY POINT_out.pdf,primary_guide
 woori,우리 화물차유류구매카드(개인신용),"{""product_code"": ""103443""}",credit,c7d0cc0c426b1f8a,woori_all/credit/1.(개정후)우리화물차유류구매카드(개인신용)_250509.pdf,primary_guide
@@ -259,11 +260,23 @@ woori,우리 소상공인 특례 햇살론카드,"{""product_code"": ""104157""}
 woori,우리카드 EV One,"{""product_code"": ""104148""}",credit,518585843d8f29a1,woori_all/credit/[상품안내장] 우리카드 EV One 상품안내장.pdf,primary_guide
 woori,웅진프리드라이프 우리카드+,"{""product_code"": ""103458""}",credit,98ac6312a5d3925c,woori_all/credit/[상품안내장] 웅진프리드라이프 우리카드+(103459)_20250926.pdf,primary_guide
 woori,카드의정석 POINT 주거래+ 매일유업,"{""product_code"": ""500020""}",credit,690e0d27fed8551e,woori_all/credit/[상품안내장] 카드의정석 POINT 주거래+ (2026.08).pdf,primary_guide
-woori,카드의정석 WELFARE Allday; 카드의정석 WELFARE Allday 공무원연금,"{""product_code"": ""102489; 104145""}",credit,0e2d49db2171dc8a,woori_all/credit/[상품안내장] 카드의정석 WELFARE Allday.pdf,shared_guide
+woori,카드의정석 WELFARE Allday,"{""product_code"": ""102489""}",credit,0e2d49db2171dc8a,woori_all/credit/[상품안내장] 카드의정석 WELFARE Allday.pdf,shared_guide
+woori,카드의정석 WELFARE Allday 공무원연금,"{""product_code"": ""104145""}",credit,0e2d49db2171dc8a,woori_all/credit/[상품안내장] 카드의정석 WELFARE Allday.pdf,shared_guide
 woori,카드의정석 WELFARE X KORAIL,"{""product_code"": ""103760""}",credit,1f299616f0f23320,woori_all/credit/[상품안내장] 카드의정석 WELFARE X KORAIL(2024.12).pdf,primary_guide
 woori,카드의정석 Welfare 서울경제진흥원,"{""product_code"": ""103773""}",credit,6c08296174c5fc95,woori_all/credit/[상품안내장] 카드의정석 WELFARE(24.01).pdf,primary_guide
-woori,카드의정석 WELFARE+; 카드의정석 WELFARE+ 스크린에스피이코리아; 카드의정석 Welfare+ 경기주택도시공사; 카드의정석 Welfare+ 대한체육회; 카드의정석 Welfare+ 한영회계법인,"{""product_code"": ""102870; 103688; 104142; 104166; 500041""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
-woori,카드의정석 WELFARE; 카드의정석 WELFARE DL에프앤씨; 카드의정석 WELFARE 한국의약품수출입협회 ; 카드의정석 WELFARE 한국해운 개인복지(신용); 카드의정석 Welfare 스튜디오프리즘; 카드의정석 Welfare 용산구시설관리공단; 카드의정석 Welfare 충북개발공사; 카드의정석 Welfare 한국기상산업기술원,"{""product_code"": ""102867; 102869; 103317; 103318; 103440; 103685; 500094; 500120""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 WELFARE+,"{""product_code"": ""102870""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
+woori,카드의정석 WELFARE+ 스크린에스피이코리아,"{""product_code"": ""103688""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
+woori,카드의정석 Welfare+ 경기주택도시공사,"{""product_code"": ""104142""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
+woori,카드의정석 Welfare+ 대한체육회,"{""product_code"": ""104166""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
+woori,카드의정석 Welfare+ 한영회계법인,"{""product_code"": ""500041""}",credit,8877f8230c104b43,woori_all/credit/[상품안내장] 카드의정석 WELFARE+(24.01).pdf,shared_guide
+woori,카드의정석 WELFARE,"{""product_code"": ""102867""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 WELFARE DL에프앤씨,"{""product_code"": ""102869""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 WELFARE 한국의약품수출입협회,"{""product_code"": ""103317""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 WELFARE 한국해운 개인복지(신용),"{""product_code"": ""103318""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 Welfare 스튜디오프리즘,"{""product_code"": ""103440""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 Welfare 용산구시설관리공단,"{""product_code"": ""103685""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 Welfare 충북개발공사,"{""product_code"": ""500094""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
+woori,카드의정석 Welfare 한국기상산업기술원,"{""product_code"": ""500120""}",credit,79faa76d9380f932,woori_all/credit/[상품안내장] 카드의정석 WELFARE.pdf,shared_guide
 woori,카드의정석2 SUPER,"{""product_code"": ""500044""}",credit,7179588e8c51ba66,woori_all/credit/[상품안내장] 카드의정석2 SUPER(2026.04) (1).pdf,primary_guide
 woori,카드의정석2 SUPER,"{""product_code"": ""500044""}",credit,7179588e8c51ba66,woori_all/credit/[상품안내장] 카드의정석2 SUPER(2026.04).pdf,primary_guide
 woori,경희사랑카드,"{""product_code"": ""103735""}",credit,840e46d56db785a1,woori_all/credit/[상품안내장]_경희사랑카드 상품안내장.pdf,primary_guide

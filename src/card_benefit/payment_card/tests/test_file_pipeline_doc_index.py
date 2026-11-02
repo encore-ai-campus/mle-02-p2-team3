@@ -114,6 +114,15 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(got["credit/unk.pdf"], ("unclassified", "existing_unverified"))
         self.assertEqual(len(extra["skipped_rows"]), 1)
 
+    def test_split_products_pairs_names_with_codes(self):
+        got = woori.split_products("A; B 협회 ; C", "1; 2; 3")
+        self.assertEqual(got, [("A", "1"), ("B 협회", "2"), ("C", "3")])
+        # 개수가 다르면 코드는 믿지 않고 비운다
+        self.assertEqual(woori.split_products("A; B", "1"), [("A", ""), ("B", "")])
+        self.assertEqual(woori.split_products("단독", "9"), [("단독", "9")])
+        # 상품 이름이 없어도 파일이 사라지면 안 된다
+        self.assertEqual(woori.split_products("", ""), [("", "")])
+
     def test_hana_scope_roles_and_origin(self):
         cols = ["카드상품명", "문서종류", "문서구분", "파일경로", "SHA256", "PDF원본URL", "모바일상세URL",
                 "PDF내 상품명확인", "다운로드결과", "실패사유", "CD_ID", "PC_SEQ", "모바일_CD_NO", "디자인코드"]

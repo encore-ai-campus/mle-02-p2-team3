@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -4615,6 +4615,7 @@ dependencies = [
     { name = "langchain-postgres" },
     { name = "langchain-text-splitters" },
     { name = "neo4j" },
+    { name = "onnxruntime" },
     { name = "pandas" },
     { name = "pgvector" },
     { name = "pillow" },
@@ -4664,6 +4665,7 @@ requires-dist = [
     { name = "langchain-postgres", specifier = ">=0.0.18" },
     { name = "langchain-text-splitters", specifier = ">=1.1.2" },
     { name = "neo4j", specifier = ">=6.0.0" },
+    { name = "onnxruntime", specifier = ">=1.31.1" },
     { name = "pandas", specifier = ">=3.0.6" },
     { name = "pgvector", specifier = ">=0.3.6" },
     { name = "pillow", specifier = ">=12.3.0" },

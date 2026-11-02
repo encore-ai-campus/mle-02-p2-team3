@@ -180,3 +180,30 @@ class BatchTests(unittest.TestCase):
             self.assertEqual([d["file_path"] for d in summary["done"]], ["x_all/a.pdf"])
             self.assertEqual(len(summary["failed"]), 1)
             self.assertTrue((root / "out" / "x" / "d1.json").is_file())
+
+
+class TablesTests(unittest.TestCase):
+    def test_compact_row_drops_empty_cells_and_newlines(self):
+        from payment_card.file_pipeline.doc_index.tables import compact_row
+
+        self.assertEqual(compact_row(["2건", "", None, "2000원\n ,", ""]), ["2건", "2000원 ,"])
+
+    def test_good_table_is_usable(self):
+        from payment_card.file_pipeline.doc_index.tables import check_table
+
+        rows = [["당월 결제 건수", "할인 금액"], ["2건", "2,000원"], ["3건", "3,000원"]]
+        plain = "당월 결제 건수 | 할인 금액 | 2건 | 2,000원 | 3건 | 3,000원"
+        self.assertEqual(check_table(rows, plain), (True, ""))
+
+    def test_split_characters_and_tiny_tables_are_rejected(self):
+        from payment_card.file_pipeline.doc_index.tables import check_table
+
+        broken = [["스", "파이크 서비스", "10000원"], ["서", "브 서비스", "5000원"], ["구", "분", "금액"]]
+        self.assertFalse(check_table(broken, "스파이크서비스10000원서브서비스5000원구분금액")[0])
+        self.assertFalse(check_table([["연회비", "12,000원"]], "연회비 12,000원")[0])
+
+    def test_char_count_mismatch_is_rejected(self):
+        from payment_card.file_pipeline.doc_index.tables import check_table
+
+        rows = [["항목", "내용"], ["가나다", "라마바"]]
+        self.assertFalse(check_table(rows, "항목 내용 가나다 라마바 " + "추가문장" * 20)[0])

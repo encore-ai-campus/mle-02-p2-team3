@@ -1,0 +1,18 @@
+{
+  "entries": 312,
+  "files": 291,
+  "missing_files": [],
+  "ocr_needed": 64,
+  "needs_review": 70,
+  "unclassified": 1,
+  "duplicate_groups": 107,
+  "bad_canonical_groups": [],
+  "skipped_rows": [
+    "KREAM 우리카드_메탈 (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)",
+    "KT Plus 우리카드 (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)",
+    "the WON (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)",
+    "the WON voucher (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)",
+    "세라젬 구독 우리카드 (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)",
+    "우리카드 UniMile (Fasoo DRM 암호화 파일(PDF 서명 없음)이 응답됨 — 열람 불가, 우회하지 않고 저장하지 않음)"
+  ]
+}

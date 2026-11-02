@@ -121,7 +121,6 @@ Table db_pipeline.card_evidence_link [note: '카드 근거 관계'] {
 
 Table db_pipeline.card_doc [note: '원천 문서'] {
   card_doc_id varchar(20) [not null, pk, note: '문서 아이디']
-  card_id bigint [note: '카드 아이디']
   doc_cd varchar(50) [not null, unique, note: '문서 코드']
   doc_family_cd varchar(100) [note: '문서 계열 코드']
   doc_type_cd varchar(20) [not null, note: '문서 유형']
@@ -291,7 +290,6 @@ Ref: db_pipeline.card_doc_chunk.(card_doc_id, page_no, card_doc_chunk_id) < db_p
 Ref: db_pipeline.card_extr_stg.card_extr_stg_id < db_pipeline.card_source_evidence.card_extr_stg_id
 Ref: db_pipeline.card_doc.card_doc_id < db_pipeline.card_doc_page.card_doc_id
 Ref: db_pipeline.card_doc_page.(card_doc_id, page_no) < db_pipeline.card_doc_chunk.(card_doc_id, page_no)
-Ref: db_pipeline.card_product.card_id < db_pipeline.card_doc.card_id
 Ref: db_pipeline.card_doc.card_doc_id < db_pipeline.card_ai_run.run_target_card_doc_id
 Ref: db_pipeline.card_ai_run.card_ai_run_id < db_pipeline.card_ai_call.card_ai_run_id
 Ref: db_pipeline.card_doc_chunk.(card_doc_id, page_no, card_doc_chunk_id) < db_pipeline.card_ai_call.(card_doc_id, page_no, card_doc_chunk_id)

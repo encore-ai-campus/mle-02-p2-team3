@@ -131,3 +131,41 @@ class AdapterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BatchTests(unittest.TestCase):
+    def test_selects_only_canonical_target_roles_and_skips_ocr(self):
+        from payment_card.file_pipeline.doc_index.batch import select_documents
+
+        def row(path, role="product_guide", canonical="Y", ocr="N"):
+            return {"file_path": path, "doc_role": role, "canonical": canonical, "ocr_needed": ocr}
+
+        targets, skipped = select_documents([
+            row("ok.pdf"), row("dup.pdf", canonical="N"), row("terms.pdf", role="terms"),
+            row("img.pdf", ocr="Y"), row("brand.pdf", role="brand_service"),
+        ])
+        self.assertEqual([t["file_path"] for t in targets], ["ok.pdf", "brand.pdf"])
+        self.assertEqual([s["file_path"] for s in skipped], ["img.pdf"])
+
+    def test_failure_of_one_file_does_not_stop_the_batch(self):
+        from payment_card.file_pipeline.doc_index.batch import run_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "idx" / "x").mkdir(parents=True)
+            cols = ["doc_id", "sha256", "file_path", "doc_role", "canonical", "ocr_needed", "pages"]
+            with (root / "idx" / "x" / "documents.csv").open("w", encoding="utf-8-sig", newline="") as file:
+                writer = csv.DictWriter(file, fieldnames=cols)
+                writer.writeheader()
+                writer.writerow(dict(zip(cols, ["d1", "s1", "x_all/a.pdf", "product_guide", "Y", "N", "2"])))
+                writer.writerow(dict(zip(cols, ["d2", "s2", "x_all/b.pdf", "product_guide", "Y", "N", "1"])))
+
+            def convert(path, expected_sha256=None, expected_page_count=None):
+                if path.name == "b.pdf":
+                    raise ValueError("SHA-256이 다릅니다")
+                return {"chunks": [1, 2], "pages": []}
+
+            summary = run_batch("x", root / "data", root / "idx", root / "out", convert=convert)
+            self.assertEqual([d["file_path"] for d in summary["done"]], ["x_all/a.pdf"])
+            self.assertEqual(len(summary["failed"]), 1)
+            self.assertTrue((root / "out" / "x" / "d1.json").is_file())

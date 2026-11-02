@@ -1,36 +1,125 @@
 # file_pipeline — 파일 기반 처리 방식 (담당: 이현근)
 
-카드 상품설명서 원본 파일을 Python으로 직접 처리해 파싱·추출·검증까지 수행하는 방식입니다.
-`db_pipeline/`(김병주)과 **같은 원천 문서를 다른 방식으로 처리하는 독립 구현**이며, 서로의 결과를 입력으로 쓰지 않습니다.
+이 문서는 이 폴더의 **지도**다. 파일을 추가하거나 옮기면 같은 커밋에서 아래 3절 표와 4절 그림을 고친다.
+(지도와 코드가 다르면 지도를 고친다.) 마지막 갱신: 2026-11-02
 
-현재 구현은 원문 추적성 파일럿입니다. `traceability.py`가 PDF를 읽어 해시, 페이지별 원문·추출 상태, 페이지 단위 청크를 JSON으로 저장합니다.
-청크 위치는 페이지마다 1부터 세며 끝 글자도 포함합니다. 빈 페이지는 기록하지만 청크는 만들지 않습니다.
-DB 접속과 혜택·조건 추출은 하지 않습니다.
+## 1. 한 줄 목적
 
-명령줄에서 실행하려면 저장소 루트에서 다음처럼 입력합니다. PDF 라이브러리가 준비된 uv 환경이 필요합니다.
+카드 상품설명서 PDF를 Python으로 직접 처리해 분류 → 원문 추적 → 청킹 → LLM 추출 → 검증까지 수행한다.
+`db_pipeline/`(김병주)과 같은 원천 문서를 다른 방식으로 처리하는 **독립 구현**이며, 서로의 결과를 입력으로 쓰지 않는다.
 
-```bash
-PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.traceability \
-  --pdf /tmp/card-pilot/hana_15299.pdf \
-  --output /tmp/card-pilot/traceability.json \
-  --expected-sha256 4a8995350682476505589ca35cfaec8de67f3cde0dcc0e144cdc59c773afbc84 \
-  --expected-page-count 2
+## 2. 전체 흐름
+
+색: 초록 = 완료, 노랑 = 진행 중(기준만 정함), 회색 = 예정.
+
+```mermaid
+flowchart LR
+    A[1 수집<br/>src/data/*_all] --> B[2 분류·인덱스<br/>doc_index]
+    B --> C[3 원문 추적<br/>traceability]
+    C --> D[4 청킹<br/>기준 확정, 코드 전]
+    D --> E[5 LLM 추출<br/>예정]
+    E --> F[6 검증 → 결과 A<br/>예정]
+    classDef done fill:#cfe8cf,stroke:#4a8
+    classDef doing fill:#fff1b8,stroke:#c90
+    classDef todo fill:#eee,stroke:#999
+    class A,B,C done
+    class D doing
+    class E,F todo
 ```
 
-JSON에는 페이지 전체 원문이 들어갑니다. 결과는 로컬 임시 폴더에 저장하고 공유하거나 Git에 올리기 전에 내용을 확인하세요. 기존 결과 파일은 기본적으로 덮어쓰지 않습니다.
+| 단계 | 입력 → 출력 | 상태 |
+|---|---|---|
+| 1 수집 | 카드사 사이트 → `src/data/{hana,woori}_all/` PDF와 manifest | 완료 (신용 중심, 체크는 하나만) |
+| 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
+| 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
+| 4 청킹 | 쪽 원문 → 청크 | 기준만 확정(`notebooks/chunking_explore.ipynb`), 코드 없음 |
+| 5 LLM 추출 | 청크 → 엔티티·관계·혜택 조건 | 예정 |
+| 6 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
-`data_modify.ipynb`는 ZIP에서 대상 PDF 한 개를 임시 폴더에 꺼내고 페이지 이미지와 추출 텍스트를 확인하는 보조 노트북입니다. 처리 로직은 `.py` 파일에만 두었습니다.
+## 3. 폴더 구성
 
-향후 개발 예정:
-- PDF 표 구조 인식 및 전처리
-- 텍스트·표 데이터 전처리, 정규식 기반 정보 추출
-- Python에서 LLM API 호출 → 엔티티·관계·카드 혜택 조건 추출
-- Python 기반 결과 검증 → 공통 형식의 구조화 결과(**결과 A**)
-- 참고: `graph-rag` 저장소의 `3_LLM식추출` 학습자료
+```
+file_pipeline/
+├── README.md                이 문서
+├── __init__.py
+├── traceability.py          3단계: PDF 1개 → 쪽별 원문 + 청크 위치 JSON
+├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
+│   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
+│   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
+│   ├── schema.py            열 이름과 허용 값
+│   ├── cli.py               카드사 1곳의 인덱스 생성 (실행 진입점)
+│   ├── batch.py             인덱스의 대표 문서를 traceability로 일괄 변환
+│   ├── tables.py            표 보조본 추출 (아직 어디에서도 부르지 않음)
+│   └── adapters/            카드사별 원본 manifest → 공통 항목 변환 (hana.py, woori.py)
+├── notebooks/               눈으로 확인하는 보조용. 로직은 두지 않는다. 커밋 전 출력 삭제
+│   ├── doc_index_check.ipynb    인덱스 결과 점검
+│   └── chunking_explore.ipynb   청킹 기준 탐색
+├── pilot_hana_15299/        하나 1건으로 원문 추적을 시험한 기록 (참고용)
+│   ├── 08_파일럿_결과.md  08_표본대조_결과.md  09_마감.md  check_sheet.md
+│   └── traceability.json
+└── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 기존 노트북
+```
 
-규칙:
-- `db_pipeline/` 을 import하지 않습니다. 공통 모델·SQL은 `payment_card/` 최상위 것을 사용하고 복사하지 않습니다.
-- 첫 Python 모듈을 추가할 때 `__init__.py` 도 함께 만듭니다. 테스트는 `payment_card/tests/test_*.py` 에 둡니다.
-- 원천·샘플 문서는 `src/card_benefit/data/` 에 둡니다.
+## 4. 모듈 호출 관계
 
-상세: `src/card_benefit/docs/development_roles.md`
+화살표는 "가져다 쓴다"이다. `tables.py`는 아직 연결되지 않았다.
+
+```mermaid
+flowchart TD
+    CLI[doc_index/cli.py] --> AD[adapters/hana.py, woori.py]
+    CLI --> CORE[core.py]
+    CLI --> MEA[measure.py]
+    CLI --> SCH[schema.py]
+    CORE --> SCH
+    BATCH[doc_index/batch.py] --> TR[traceability.py]
+    TR --> DR[common/document_reader]
+    TAB[tables.py]:::loose
+    classDef loose fill:#eee,stroke:#999,stroke-dasharray: 4
+```
+
+`core.py` 안에서 일어나는 일의 순서는 `docs/작업이력/core-단순화-계획.md`의 흐름도에 있다.
+
+## 5. 실행 방법
+
+저장소 루트에서 실행한다. PDF 라이브러리가 준비된 uv 환경이 필요하다.
+
+```bash
+# 2단계: 카드사 1곳의 인덱스 만들기
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.doc_index.cli --issuer woori --overwrite
+
+# 3단계: 대표 문서를 쪽별 원문 JSON으로 변환 (출력 폴더는 직접 지정)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.doc_index.batch --issuer woori --output-dir <저장 폴더>
+
+# 테스트
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/
+```
+
+JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하고 공유하거나 Git에 올리기 전에 내용을 확인한다.
+
+## 6. 읽는 순서 (처음 보는 사람)
+
+1. 이 README의 2절 흐름도
+2. `docs/작업이력/2026-11-02-카드사-문서-인덱스.md` — 무엇을 왜 했는지
+3. `doc_index/core.py` 맨 위 설명과 맨 아래 `build_index` — 인덱스가 만들어지는 순서
+4. `notebooks/doc_index_check.ipynb` — 결과를 표로 보기
+5. `traceability.py` — 원문 추적 JSON 구조
+
+## 7. 결정 기록
+
+| 날짜 | 결정 | 이유 |
+|---|---|---|
+| 2026-11-02 | 범위는 신용카드와 common. 체크카드는 2단계 | 우리 `debit/`이 비어 있고 하나 체크는 변환본만 있는 카드가 있음 |
+| 2026-11-02 | 같은 해시는 한 문서, 대표 1개만 `canonical=Y` | 같은 내용이 경로만 달라 여러 벌 있음(우리 107그룹) |
+| 2026-11-02 | 웹 변환본은 공식 PDF가 있으면 대표에서 제외 | 같은 카드가 두 번 추출되는 것을 막음 |
+| 2026-11-02 | 표는 평문을 원문으로 두고 검사 통과한 것만 보조본 | 표 추출기가 병합 셀을 비우거나 글자를 쪼갬 |
+| 2026-11-02 | 청킹은 쪽 4000자 이하는 쪽 단위, 초과는 글자 크기 제목 기준, 400자 미만은 앞에 붙임 | 193개 문서 814쪽으로 24가지 기준값 비교 |
+| 2026-11-02 | OCR 도구는 아직 설치하지 않음 | 우리 대표 문서 39개가 대상, 텍스트 PDF로 먼저 끝까지 시험 |
+| 2026-11-02 | 공유 문서는 RAG에서 청크 1개 + 상품 목록 | 같은 내용이 검색 결과에 여러 번 나오는 것을 막음 |
+
+## 규칙
+
+- `db_pipeline/`을 import하지 않는다. 공통 모델·SQL은 `payment_card/` 최상위 것을 쓰고 복사하지 않는다.
+- 새 Python 폴더를 만들면 `__init__.py`도 함께 만든다. 테스트는 `payment_card/tests/test_*.py`에 둔다.
+- 원천·샘플 문서는 `src/card_benefit/data/`에 둔다. `src/data/*_all/`은 `.gitignore` 대상이다.
+- 코드를 쓰기 전에 쉬운 말로 설명하고 흐름도를 보여 준 뒤 승인받는다. 승인 전에는 커밋하지 않는다.
+- 상세: `src/card_benefit/docs/development_roles.md`

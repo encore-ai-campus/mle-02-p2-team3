@@ -10,6 +10,7 @@
 
 ## 2. 전체 흐름
 
+프로젝트 전체 11단계 중 이 폴더가 맡는 1~7단계다. 8~11단계(비교, 정규화, 지식그래프, 챗봇)와 상대 담당은 [프로젝트 지도](../../../../docs/프로젝트-지도.md)에 있다.
 색: 초록 = 완료, 노랑 = 진행 중(기준만 정함), 회색 = 예정.
 
 ```mermaid
@@ -17,14 +18,15 @@ flowchart LR
     A[1 수집<br/>src/data/*_all] --> B[2 분류·인덱스<br/>doc_index]
     B --> C[3 원문 추적<br/>traceability]
     C --> D[4 청킹<br/>기준 확정, 코드 전]
-    D --> E[5 LLM 추출<br/>예정]
-    E --> F[6 검증 → 결과 A<br/>예정]
+    D --> O[5 추출 스키마<br/>공통 계약]
+    O --> E[6 LLM 추출<br/>예정]
+    E --> F[7 검증 → 결과 A<br/>예정]
     classDef done fill:#cfe8cf,stroke:#4a8
     classDef doing fill:#fff1b8,stroke:#c90
     classDef todo fill:#eee,stroke:#999
     class A,B,C done
     class D doing
-    class E,F todo
+    class O,E,F todo
 ```
 
 | 단계 | 입력 → 출력 | 상태 |
@@ -33,8 +35,9 @@ flowchart LR
 | 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크 | 기준만 확정(`notebooks/chunking_explore.ipynb`), 코드 없음 |
-| 5 LLM 추출 | 청크 → 엔티티·관계·혜택 조건 | 예정 |
-| 6 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
+| 5 추출 스키마 | 뽑을 항목과 관계의 공통 계약 | 예정. 공통 계약 여부는 DB 쪽 작업 후 재개 |
+| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 예정 |
+| 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
 ## 3. 폴더 구성
 
@@ -53,11 +56,11 @@ file_pipeline/
 │   └── adapters/            카드사별 원본 manifest → 공통 항목 변환 (hana.py, woori.py)
 ├── notebooks/               눈으로 확인하는 보조용. 로직은 두지 않는다. 커밋 전 출력 삭제
 │   ├── doc_index_check.ipynb    인덱스 결과 점검
-│   └── chunking_explore.ipynb   청킹 기준 탐색
+│   ├── chunking_explore.ipynb   청킹 기준 탐색
+│   └── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 기존 노트북
 ├── pilot_hana_15299/        하나 1건으로 원문 추적을 시험한 기록 (참고용)
 │   ├── 08_파일럿_결과.md  08_표본대조_결과.md  09_마감.md  check_sheet.md
 │   └── traceability.json
-└── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 기존 노트북
 ```
 
 ## 4. 모듈 호출 관계

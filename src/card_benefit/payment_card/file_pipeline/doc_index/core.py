@@ -19,9 +19,13 @@ def _rank_key(doc: dict) -> tuple:
     return (ORIGIN_RANK[doc["origin"]], -board, len(name), doc["file_path"])
 
 
-def build_index(issuer: str, issuer_root: Path, entries: list[dict], measure) -> tuple[list[dict], list[dict], dict]:
+def build_index(
+    issuer: str, issuer_root: Path, entries: list[dict], measure, card_type_overrides: dict | None = None
+) -> tuple[list[dict], list[dict], dict]:
     """entries는 어댑터가 만든 항목이고, measure는 measure_pdf와 같은 모양의 함수다.
 
+    card_type_overrides는 사람이 확인한 {상품명: 카드 구분}이다. 문서의 상품이 모두 여기에 있으면
+    폴더 대신 이 값을 쓰고 "카드 구분 확인 필요" 사유를 지운다.
     같은 파일을 가리키는 항목은 파일 1개로 합치고 상품 연결만 늘린다.
     반환: (documents 행, product_docs 행, 점검 요약)
     """
@@ -66,6 +70,13 @@ def build_index(issuer: str, issuer_root: Path, entries: list[dict], measure) ->
             "_reasons": list(dict.fromkeys(reasons)),
             "_products": {e["product_name"] for e in group},
         }
+
+    overrides = card_type_overrides or {}
+    for doc in docs.values():
+        types = {overrides.get(name) for name in doc["_products"]}
+        if len(types) == 1 and None not in types:
+            doc["card_type"] = types.pop()
+            doc["_reasons"] = [r for r in doc["_reasons"] if not r.startswith("카드 구분 확인 필요")]
 
     # 같은 해시의 파일끼리 대표 1개를 고른다.
     groups: dict[str, list[dict]] = {}

@@ -17,13 +17,15 @@ from ..traceability import create_traceability, write_traceability
 
 # 이 역할의 대표 문서만 처리한다. 약관·미분류는 대상이 아니다.
 TARGET_ROLES = {"product_guide", "web_capture", "brand_service"}
+# 이번 범위는 신용카드와 공통 문서다. 사람이 체크카드로 확인한 문서는 제외한다.
+TARGET_CARD_TYPES = {"credit", "common"}
 
 
 def select_documents(rows: list[dict]) -> tuple[list[dict], list[dict]]:
     """처리할 문서와 건너뛸 문서(사유 포함)를 나눈다."""
     targets, skipped = [], []
     for row in rows:
-        if row["canonical"] != "Y" or row["doc_role"] not in TARGET_ROLES:
+        if row["canonical"] != "Y" or row["doc_role"] not in TARGET_ROLES or row["card_type"] not in TARGET_CARD_TYPES:
             continue
         if row["ocr_needed"] == "Y":
             skipped.append({"file_path": row["file_path"], "reason": "OCR 필요(이미지 PDF)"})

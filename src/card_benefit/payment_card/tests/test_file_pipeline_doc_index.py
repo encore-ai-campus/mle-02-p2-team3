@@ -28,8 +28,10 @@ def entry(path, product, role="product_guide", origin="official_download", board
 
 
 class BuildIndexTests(unittest.TestCase):
-    def build(self, entries, shas, **kwargs):
-        return build_index("x", Path("/none"), entries, fake_measure(shas, **kwargs))
+    def build(self, entries, shas, card_type_overrides=None, **kwargs):
+        return build_index(
+            "x", Path("/none"), entries, fake_measure(shas, **kwargs), card_type_overrides
+        )
 
     def test_same_hash_keeps_one_canonical_preferring_official_over_existing(self):
         entries = [
@@ -61,6 +63,14 @@ class BuildIndexTests(unittest.TestCase):
         _, links, _ = self.build(entries, {"p1.pdf": "11", "p2.pdf": "11", "o.pdf": "22"})
         relation = {link["product_name"]: link["relation"] for link in links}
         self.assertEqual(relation, {"P1": "shared_guide", "P2": "shared_guide", "O": "primary_guide"})
+
+    def test_human_card_type_override_replaces_folder_and_clears_reason(self):
+        e = entry("credit/c.pdf", "체크상품")
+        e["review_reasons"] = ["카드 구분 확인 필요(상품명에 체크 포함)", "다른 사유"]
+        docs, links, _ = self.build([e], {"c.pdf": "aa"}, card_type_overrides={"체크상품": "debit"})
+        self.assertEqual(docs[0]["card_type"], "debit")
+        self.assertEqual(docs[0]["review_reason"], "다른 사유")
+        self.assertEqual(links[0]["card_type"], "debit")
 
     def test_missing_file_is_reported_not_indexed(self):
         docs, links, summary = self.build([entry("credit/none.pdf", "A")], {})
@@ -137,12 +147,13 @@ class BatchTests(unittest.TestCase):
     def test_selects_only_canonical_target_roles_and_skips_ocr(self):
         from payment_card.file_pipeline.doc_index.batch import select_documents
 
-        def row(path, role="product_guide", canonical="Y", ocr="N"):
-            return {"file_path": path, "doc_role": role, "canonical": canonical, "ocr_needed": ocr}
+        def row(path, role="product_guide", canonical="Y", ocr="N", card="credit"):
+            return {"file_path": path, "doc_role": role, "canonical": canonical, "ocr_needed": ocr, "card_type": card}
 
         targets, skipped = select_documents([
             row("ok.pdf"), row("dup.pdf", canonical="N"), row("terms.pdf", role="terms"),
-            row("img.pdf", ocr="Y"), row("brand.pdf", role="brand_service"),
+            row("img.pdf", ocr="Y"), row("brand.pdf", role="brand_service", card="common"),
+            row("chk.pdf", card="debit"),
         ])
         self.assertEqual([t["file_path"] for t in targets], ["ok.pdf", "brand.pdf"])
         self.assertEqual([s["file_path"] for s in skipped], ["img.pdf"])
@@ -153,12 +164,12 @@ class BatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "idx" / "x").mkdir(parents=True)
-            cols = ["doc_id", "sha256", "file_path", "doc_role", "canonical", "ocr_needed", "pages"]
+            cols = ["doc_id", "sha256", "file_path", "doc_role", "canonical", "ocr_needed", "pages", "card_type"]
             with (root / "idx" / "x" / "documents.csv").open("w", encoding="utf-8-sig", newline="") as file:
                 writer = csv.DictWriter(file, fieldnames=cols)
                 writer.writeheader()
-                writer.writerow(dict(zip(cols, ["d1", "s1", "x_all/a.pdf", "product_guide", "Y", "N", "2"])))
-                writer.writerow(dict(zip(cols, ["d2", "s2", "x_all/b.pdf", "product_guide", "Y", "N", "1"])))
+                writer.writerow(dict(zip(cols, ["d1", "s1", "x_all/a.pdf", "product_guide", "Y", "N", "2", "credit"])))
+                writer.writerow(dict(zip(cols, ["d2", "s2", "x_all/b.pdf", "product_guide", "Y", "N", "1", "credit"])))
 
             def convert(path, expected_sha256=None, expected_page_count=None):
                 if path.name == "b.pdf":

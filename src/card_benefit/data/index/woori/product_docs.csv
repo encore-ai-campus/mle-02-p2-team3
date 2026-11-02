@@ -30,9 +30,9 @@ woori,NU Biz (舊 Biz KIT(비스킷)),"{""product_code"": ""101655""}",common,65
 woori,NU Members+,"{""product_code"": ""103721""}",credit,6993bc7fb2f683ac,woori_all/credit/신용_NUMembers+_103721_상품설명서(공식PDF)_g1_cfe01538.pdf,primary_guide
 woori,NU Members카드,"{""product_code"": ""102280""}",credit,b5c1b3a641418109,woori_all/credit/신용_NUMembers카드_102280_상품설명서(공식PDF)_g1_0890c221.pdf,primary_guide
 woori,NU 후불하이패스,"{""product_code"": ""102031""}",credit,32202c0bbcd42af2,woori_all/credit/신용_NU후불하이패스_102031_상품설명서(공식PDF)_g1_cea9d423.pdf,primary_guide
-woori,Npay 우리 체크카드,"{""product_code"": ""500108""}",credit,faa327278eee720e,woori_all/credit/신용_Npay우리체크카드_500108_상품설명서(공식PDF)_g1_4bc369c3.pdf,primary_guide
+woori,Npay 우리 체크카드,"{""product_code"": ""500108""}",debit,faa327278eee720e,woori_all/credit/신용_Npay우리체크카드_500108_상품설명서(공식PDF)_g1_4bc369c3.pdf,primary_guide
 woori,POP우리V스쿨카드,"{""product_code"": ""243757""}",credit,17c32eb44e0ea8cd,woori_all/credit/신용_POP우리V스쿨카드_243757_상품설명서(공식PDF)_g1_2e0c2876.pdf,primary_guide
-woori,QWERTY 우리카드 체크,"{""product_code"": ""500101""}",credit,5a4d1b76b380c6fb,woori_all/credit/신용_QWERTY우리카드체크_500101_상품설명서(공식PDF)_g1_c47bb218.pdf,primary_guide
+woori,QWERTY 우리카드 체크,"{""product_code"": ""500101""}",debit,5a4d1b76b380c6fb,woori_all/credit/신용_QWERTY우리카드체크_500101_상품설명서(공식PDF)_g1_c47bb218.pdf,primary_guide
 woori,ROYAL BLUE M,"{""product_code"": ""102496""}",credit,ae24ff18871eb6e9,woori_all/credit/신용_ROYALBLUEM_102496_상품설명서(공식PDF)_g1_3076ed65.pdf,primary_guide
 woori,ROYAL BLUE M,"{""product_code"": ""102496""}",common,346dbaa50ad57fdb,woori_all/common/공통_브랜드서비스_1.(개정후)국제브랜드서비스안내장(2026년)_MC_W_기본_2af8892d.pdf,brand
 woori,ROYAL BLUE M,"{""product_code"": ""102496""}",common,18b7dbd01f14fb5a,woori_all/common/공통_브랜드서비스_국제브랜드서비스안내장(2026)_MC_W_선택2_d8832460.pdf,brand
@@ -57,8 +57,8 @@ woori,TWO CHAIRS W,"{""product_code"": ""103726""}",common,9e2a5ddc0ce18fe8,woor
 woori,T라이트 우리카드,"{""product_code"": ""103749""}",credit,8cd176b94da0b1f4,woori_all/credit/신용_T라이트우리카드_103749_상품설명서(공식PDF)_g1_7c68fb17.pdf,primary_guide
 woori,U+ X 36 우리카드,"{""product_code"": ""500056""}",credit,8c77ba81b919e183,woori_all/credit/신용_U+X36우리카드_500056_상품설명서(공식PDF)_g1_21c3093a.pdf,primary_guide
 woori,U+ X 우리카드,"{""product_code"": ""103751""}",credit,e9a89a38ec8c1c19,woori_all/credit/신용_U+X우리카드_103751_상품설명서(공식PDF)_g1_3171b232.pdf,primary_guide
-woori,W_SCHOOL체크_광주숭일고등학교,"{""product_code"": ""104138""}",credit,6e9c753782bcaf44,woori_all/credit/신용_W_SCHOOL체크_광주숭일고등학교_104138_상품설명서(공식PDF)_g1_85d021b7.pdf,primary_guide
-woori,W_UNI체크+,"{""product_code"": ""103531""}",credit,62f6af6bf82e2acc,woori_all/credit/신용_W_UNI체크+_103531_상품설명서(공식PDF)_g1_807ac2f0.pdf,primary_guide
+woori,W_SCHOOL체크_광주숭일고등학교,"{""product_code"": ""104138""}",debit,6e9c753782bcaf44,woori_all/credit/신용_W_SCHOOL체크_광주숭일고등학교_104138_상품설명서(공식PDF)_g1_85d021b7.pdf,primary_guide
+woori,W_UNI체크+,"{""product_code"": ""103531""}",debit,62f6af6bf82e2acc,woori_all/credit/신용_W_UNI체크+_103531_상품설명서(공식PDF)_g1_807ac2f0.pdf,primary_guide
 woori,WithWOORI 보조금결제전용카드(개인),"{""product_code"": ""228391""}",credit,58d4fa5098f3f9de,woori_all/credit/신용_WithWOORI보조금결제전용카드(개인)_228391_상품설명서(공식PDF)_g1_df53d5b7.pdf,primary_guide
 woori,ZEROSE 우리카드,"{""product_code"": ""500047""}",credit,cb6a1ef6e8e1948b,woori_all/credit/신용_ZEROSE우리카드_500047_상품설명서(공식PDF)_g1_d1790b9b.pdf,primary_guide
 woori,e-나라도움 전용카드(개인),"{""product_code"": ""830649""}",credit,0cc8a17cefc7ed5b,woori_all/credit/신용_e-나라도움전용카드(개인)_830649_상품설명서(공식PDF)_g1_4149f3c1.pdf,primary_guide
@@ -82,7 +82,7 @@ woori,갤러리아 Platinum 우리카드,"{""product_code"": ""103483""}",common
 woori,경희사랑카드,"{""product_code"": ""103735""}",credit,840e46d56db785a1,woori_all/credit/신용_경희사랑카드_103735_상품설명서(공식PDF)_g1_5f503932.pdf,primary_guide
 woori,교원웰스 우리카드 Ⅱ,"{""product_code"": ""103737""}",credit,2e1e415e67891a23,woori_all/credit/신용_교원웰스우리카드Ⅱ_103737_상품설명서(공식PDF)_g1_8eb89ca9.pdf,primary_guide
 woori,국민연금증 우리카드,"{""product_code"": ""104140""}",credit,46df330b55fee205,woori_all/credit/신용_국민연금증우리카드_104140_상품설명서(공식PDF)_g1_24625f40.pdf,primary_guide
-woori,국민행복 체크카드S2,"{""product_code"": ""100861""}",credit,cb22807efe097242,woori_all/credit/신용_국민행복체크카드S2_100861_상품설명서(공식PDF)_g1_30e1183d.pdf,primary_guide
+woori,국민행복 체크카드S2,"{""product_code"": ""100861""}",debit,cb22807efe097242,woori_all/credit/신용_국민행복체크카드S2_100861_상품설명서(공식PDF)_g1_30e1183d.pdf,primary_guide
 woori,국민행복카드S2,"{""product_code"": ""100860""}",credit,1fcaf9dcd9b3c4e0,woori_all/credit/신용_국민행복카드S2_100860_상품설명서(공식PDF)_g1_8e39a972.pdf,primary_guide
 woori,군인연금증 우리카드,"{""product_code"": ""104139""}",credit,92e658b7db0fb50f,woori_all/credit/신용_군인연금증우리카드_104139_상품설명서(공식PDF)_g1_134d9a0c.pdf,primary_guide
 woori,군인연금증 우리카드,"{""product_code"": ""104139""}",common,b05e4c64ec0bcdbd,woori_all/common/공통_브랜드서비스_9.(개정후)국제브랜드서비스안내장(2026년)_MC_P.T_기본_64f5730d.pdf,brand
@@ -102,7 +102,7 @@ woori,사원증 카드의정석 EVERY 1,"{""product_code"": ""102853""}",credit,
 woori,사원증 카드의정석 EVERY 1 POINT,"{""product_code"": ""102854""}",credit,c7345c85722f314f,woori_all/credit/신용_사원증카드의정석EVERY1POINT_102854_상품설명서(공식PDF)_g1_a9f44066.pdf,primary_guide
 woori,삼성AI구독 우리카드,"{""product_code"": ""104123""}",credit,1271bb513f0bd184,woori_all/credit/신용_삼성AI구독우리카드_104123_상품설명서(공식PDF)_g1_d7c3fd05.pdf,primary_guide
 woori,세라젬 구독 우리카드,"{""product_code"": ""104147""}",credit,bb55fc30971b1057,woori_all/credit/신용_세라젬구독우리카드_104147_상품설명서(공식PDF)_g1_c1659c3b.pdf,primary_guide
-woori,속초사랑 체크카드,"{""product_code"": ""102529""}",credit,6da3068f4786bb33,woori_all/credit/신용_속초사랑체크카드_102529_상품설명서(공식PDF)_g1_8f5c748d.pdf,primary_guide
+woori,속초사랑 체크카드,"{""product_code"": ""102529""}",debit,6da3068f4786bb33,woori_all/credit/신용_속초사랑체크카드_102529_상품설명서(공식PDF)_g1_8f5c748d.pdf,primary_guide
 woori,수호천사 동양생명 우리카드,"{""product_code"": ""104137""}",credit,2f5356a4e4059620,woori_all/credit/신용_수호천사동양생명우리카드_104137_상품설명서(공식PDF)_g1_8b4189fc.pdf,primary_guide
 woori,스타트래블 우리카드,"{""product_code"": ""104171""}",credit,8e2ebaac5088c926,woori_all/credit/신용_스타트래블우리카드_104171_상품설명서(공식PDF)_g1_b00e6ca6.pdf,primary_guide
 woori,스타트래블 우리카드,"{""product_code"": ""104171""}",credit,fc5477091e47ace9,"woori_all/credit/신용_스타트래블우리카드_104171_상품설명서(공식PDF,g1New)_g1New_43d0dd7d.pdf",primary_guide
@@ -128,7 +128,7 @@ woori,우리카드 EV One,"{""product_code"": ""104148""}",credit,518585843d8f29
 woori,우리카드 UniMile,"{""product_code"": ""104153""}",credit,017b03279f1d5bfa,woori_all/credit/신용_우리카드UniMile_104153_상품설명서(공식PDF)_g1_fa98d4b2.pdf,primary_guide
 woori,우리카드 UniMile,"{""product_code"": ""104153""}",common,40819705fc4c0c48,woori_all/common/공통_브랜드서비스_32.(개정후)국제브랜드서비스안내장(2026년)_UPI_P_기본_out_c11b6d49.pdf,brand
 woori,우리카드 UniMile,"{""product_code"": ""104153""}",common,4def8f15591c022e,woori_all/common/공통_브랜드서비스_37.(개정후)국제브랜드서비스안내장(2026년)_UPI_P_선택5(선택5+7통합)_out_acafb903.pdf,brand
-woori,우리행복지킴이체크카드,"{""product_code"": ""203496""}",credit,893b0fd23f55f88e,woori_all/credit/신용_우리행복지킴이체크카드_203496_상품설명서(공식PDF)_g1_655cd19b.pdf,primary_guide
+woori,우리행복지킴이체크카드,"{""product_code"": ""203496""}",debit,893b0fd23f55f88e,woori_all/credit/신용_우리행복지킴이체크카드_203496_상품설명서(공식PDF)_g1_655cd19b.pdf,primary_guide
 woori,웅진프리드라이프 우리카드+,"{""product_code"": ""103458""}",credit,98ac6312a5d3925c,woori_all/credit/신용_웅진프리드라이프우리카드+_103458_상품설명서(공식PDF)_g1_70d3d1bf.pdf,primary_guide
 woori,이제너두 카드의정석 DISCOUNT,"{""product_code"": ""100895""}",credit,b4abf165125003ad,woori_all/credit/신용_이제너두카드의정석DISCOUNT_100895_상품설명서(공식PDF)_g1_26200cce.pdf,primary_guide
 woori,자유로운여행(SKYPASS/Asiana Club),"{""product_code"": ""226525""}",credit,dacf9419149528c8,woori_all/credit/신용_자유로운여행(SKYPASSAsianaClub)_226525_상품설명서(공식PDF)_g1_8fcda78d.pdf,primary_guide

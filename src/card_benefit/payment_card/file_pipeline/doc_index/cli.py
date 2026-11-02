@@ -25,10 +25,19 @@ def _write_csv(path: Path, columns: list[str], rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def load_overrides(path: Path) -> dict:
+    """사람이 확인한 카드 구분 파일(상품명, card_type, reason)을 읽는다. 파일이 없으면 빈 값이다."""
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        return {row["product_name"]: row["card_type"] for row in csv.DictReader(file)}
+
+
 def run(issuer: str, data_root: Path, output_dir: Path, overwrite: bool = False) -> dict:
     issuer_root = data_root / f"{issuer}_all"
     entries, extra = ADAPTERS[issuer].load_entries(issuer_root)
-    documents, product_docs, summary = build_index(issuer, issuer_root, entries, measure_pdf)
+    overrides = load_overrides(output_dir / issuer / "card_type_overrides.csv")
+    documents, product_docs, summary = build_index(issuer, issuer_root, entries, measure_pdf, overrides)
     summary.update(extra)
 
     out = output_dir / issuer

@@ -11,21 +11,20 @@
 ## 2. 전체 흐름
 
 프로젝트 전체 11단계 중 이 폴더가 맡는 1~7단계다. 8~11단계(비교, 정규화, 지식그래프, 챗봇)와 상대 담당은 [프로젝트 지도](../../../../docs/프로젝트-지도.md)에 있다.
-색: 초록 = 완료, 노랑 = 진행 중(기준만 정함), 회색 = 예정.
+색: 초록 = 완료, 회색 = 예정.
 
 ```mermaid
 flowchart LR
     A[1 수집<br/>src/data/*_all] --> B[2 분류·인덱스<br/>doc_index]
     B --> C[3 원문 추적<br/>traceability]
-    C --> D[4 청킹<br/>기준 확정, 코드 전]
+    C --> D[4 청킹<br/>chunking]
     D --> O[5 추출 스키마<br/>공통 계약]
     O --> E[6 LLM 추출<br/>예정]
     E --> F[7 검증 → 결과 A<br/>예정]
     classDef done fill:#cfe8cf,stroke:#4a8
     classDef doing fill:#fff1b8,stroke:#c90
     classDef todo fill:#eee,stroke:#999
-    class A,B,C done
-    class D doing
+    class A,B,C,D done
     class O,E,F todo
 ```
 
@@ -34,7 +33,7 @@ flowchart LR
 | 1 수집 | 카드사 사이트 → `src/data/{hana,woori}_all/` PDF와 manifest | 완료 (신용 중심, 체크는 하나만) |
 | 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
-| 4 청킹 | 쪽 원문 → 청크 | 기준만 확정(`notebooks/chunking_explore.ipynb`), 코드 없음 |
+| 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
 | 5 추출 스키마 | 뽑을 항목과 관계의 공통 계약 | 예정. 공통 계약 여부는 DB 쪽 작업 후 재개 |
 | 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 예정 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
@@ -46,6 +45,11 @@ file_pipeline/
 ├── README.md                이 문서
 ├── __init__.py
 ├── traceability.py          3단계: PDF 1개 → 쪽별 원문 + 청크 위치 JSON
+├── chunking/                4단계: 쪽 원문을 청크로 자름
+│   ├── split.py             쪽 원문 + 제목 위치 → 자를 조각 (PDF를 열지 않는 순수 함수)
+│   ├── headings.py          글자 크기로 제목 줄을 찾아 쪽 원문 안의 위치로 변환, 표 안 제목은 제외
+│   ├── build.py             쪽 → 청크 변환과 "이어 붙이면 원문과 같은가" 검증
+│   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
 ├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
 │   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
 │   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
@@ -75,6 +79,10 @@ flowchart TD
     CLI --> SCH[schema.py]
     CORE --> SCH
     BATCH[doc_index/batch.py] --> TR[traceability.py]
+    CK[chunking/cli.py] --> BATCH
+    CK --> BLD[chunking/build.py]
+    CK --> HD[chunking/headings.py]
+    BLD --> SPL[chunking/split.py]
     TR --> DR[common/document_reader]
     TAB[tables.py]:::loose
     classDef loose fill:#eee,stroke:#999,stroke-dasharray: 4
@@ -93,6 +101,9 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 # 3단계: 대표 문서를 쪽별 원문 JSON으로 변환 (출력 폴더는 직접 지정)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.doc_index.batch --issuer woori --output-dir <저장 폴더>
 
+# 4단계: 3단계 JSON을 청크 JSON으로 (입력은 3단계 출력 폴더, 출력 폴더는 직접 지정)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.chunking.cli --issuer woori --trace-dir <3단계 출력 폴더> --output-dir <저장 폴더>
+
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/
 ```
@@ -106,6 +117,7 @@ JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하�
 3. `doc_index/core.py` 맨 위 설명과 맨 아래 `build_index` — 인덱스가 만들어지는 순서
 4. `notebooks/doc_index_check.ipynb` — 결과를 표로 보기
 5. `traceability.py` — 원문 추적 JSON 구조
+6. `chunking/split.py` — 쪽을 어디서 자르는지(35줄)
 
 ## 7. 결정 기록
 
@@ -116,6 +128,8 @@ JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하�
 | 2026-11-02 | 웹 변환본은 공식 PDF가 있으면 대표에서 제외 | 같은 카드가 두 번 추출되는 것을 막음 |
 | 2026-11-02 | 표는 평문을 원문으로 두고 검사 통과한 것만 보조본 | 표 추출기가 병합 셀을 비우거나 글자를 쪼갬 |
 | 2026-11-02 | 청킹은 쪽 4000자 이하는 쪽 단위, 초과는 글자 크기 제목 기준, 400자 미만은 앞에 붙임 | 193개 문서 814쪽으로 24가지 기준값 비교 |
+| 2026-11-02 | 제목 줄이 감지된 표 안에 있으면 그 앞에서 자르지 않음 | 자를 위치 270곳 중 24곳(9%)이 표 안. 대가로 4000자 초과 청크가 21 → 29개 |
+| 2026-11-02 | 제목 없는 긴 쪽(카드의정석2 7쪽 7,935자 등)은 쪼개지 않음 | 길이가 실제 문제인지 5단계에서 확인한 뒤 문단 규칙 추가 여부 결정 |
 | 2026-11-02 | OCR 도구는 아직 설치하지 않음 | 우리 대표 문서 39개가 대상, 텍스트 PDF로 먼저 끝까지 시험 |
 | 2026-11-02 | 공유 문서는 RAG에서 청크 1개 + 상품 목록 | 같은 내용이 검색 결과에 여러 번 나오는 것을 막음 |
 

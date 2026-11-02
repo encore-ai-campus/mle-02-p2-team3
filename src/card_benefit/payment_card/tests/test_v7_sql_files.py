@@ -106,11 +106,16 @@ class SchemaV7Tests(unittest.TestCase):
                               "evidence_subject_orphan", "evidence_item_key_missing", "common_cd_invalid",
                               "brand_bnft_doc_not_linked", "brand_bnft_confirmed_without_evidence",
                               "evidence_brand_opt_mismatch", "brand_doc_option_conflict",
-                              "product_doc_role_type_mismatch", "shared_doc_bound_to_card", "stg_card_not_linked"}, gates)
+                              "product_doc_role_type_mismatch", "stg_card_not_linked"}, gates)
         self.assertFalse(gates & {"policy_without_product", "bnft_without_policy", "pool_without_policy",
                                   "policy_period_overlap", "policy_doc_orphan", "pool_without_product", "pool_ref_orphan",
                                   "rule_pool_product_orphan", "rule_pool_benefit_orphan", "rule_pool_rule_orphan",
                                   "rel_trigger_pool_orphan"})
+
+    def test_card_doc_no_longer_has_card_id(self):
+        block = self.ddl.split("CREATE TABLE db_pipeline.card_doc (", 1)[1].split("CREATE TABLE db_pipeline.card_doc_page", 1)[0]
+        self.assertNotRegex(block, r"(?m)^    card_id\b")
+        self.assertNotIn("shared_doc_bound_to_card", self.ddl)
 
     def test_common_code_description_columns_are_kept(self):
         self.assertIn("common_code_grp_desc text,", self.ddl)
@@ -205,9 +210,20 @@ class BnftTextMigrationTests(unittest.TestCase):
 
     def test_views_are_the_ddl_definitions(self):
         ddl = read("db_pipeline_schemaV7_draft.sql")
-        for name in ("v_card_bnft_rel", "v_card_cond_atom", "v_common_cd_usage", "v_card_integrity_issue"):
+        for name in ("v_card_bnft_rel", "v_card_cond_atom", "v_common_cd_usage"):
             pattern = rf"CREATE VIEW db_pipeline\.{name} AS\n.*?;\n\nCOMMENT ON VIEW"
             self.assertEqual(re.search(pattern, ddl, re.S).group(0), re.search(pattern, self.forward, re.S).group(0))
+
+        # Legacy bnft_text migration precedes the separate CARD_DOC.CARD_ID removal migration.
+        pattern = r"CREATE VIEW db_pipeline\.v_card_integrity_issue AS\n.*?;\n\nCOMMENT ON VIEW"
+        current = re.search(pattern, ddl, re.S).group(0)
+        previous = re.search(pattern, self.forward, re.S).group(0)
+        self.assertIn("shared_doc_bound_to_card", previous)
+        self.assertNotIn("shared_doc_bound_to_card", current)
+        drop_migration = read("db_pipeline_migration_v7_drop_card_doc_card_id.sql")
+        migrated = re.search(pattern.replace("CREATE VIEW", "CREATE OR REPLACE VIEW"),
+                             drop_migration, re.S).group(0).replace("CREATE OR REPLACE VIEW", "CREATE VIEW", 1)
+        self.assertEqual(current, migrated)
 
     def test_no_cascade_and_single_transaction(self):
         for text in (self.forward, self.rollback):

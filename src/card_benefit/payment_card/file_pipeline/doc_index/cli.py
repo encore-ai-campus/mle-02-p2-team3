@@ -63,8 +63,9 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(f"오류: {error}", file=sys.stderr)
         return 1
-    printable = {k: (len(v) if isinstance(v, list) and k in ("skipped_rows",) else v) for k, v in summary.items()}
-    print(json.dumps(printable, ensure_ascii=False, indent=2))
+    shown = dict(summary)
+    shown["skipped_rows"] = len(summary["skipped_rows"])  # 목록 전체는 summary.json에 있으므로 건수만 보여 준다
+    print(json.dumps(shown, ensure_ascii=False, indent=2))
     return 0 if not summary["missing_files"] and not summary["bad_canonical_groups"] else 2
 
 

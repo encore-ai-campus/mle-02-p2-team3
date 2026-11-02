@@ -2,7 +2,7 @@
 
 흐름: group_by_path -> measure_files -> apply_card_type_overrides -> pick_canonical
       -> drop_superseded_web_captures -> build_product_docs / finish_documents
-build_index가 이 함수들을 순서대로 부르기만 한다.
+build_index가 이 함수들을 순서대로 부르기만 한다. (apply_review_decisions는 사람이 확인한 결과를 반영한다.)
 
 docs는 {원본 경로: 문서 한 줄(dict)}이다. 문서 한 줄에 넣지 않는 임시 값(상품 이름들, 검토 사유)은
 extra라는 따로 만든 dict에 둔다. extra의 키는 문서 한 줄의 file_path 값이다.
@@ -92,6 +92,26 @@ def apply_card_type_overrides(docs: dict, extra: dict, overrides: dict) -> None:
         if len(types) == 1 and None not in types:
             doc["card_type"] = types.pop()
             item["reasons"] = [r for r in item["reasons"] if not r.startswith("카드 구분 확인 필요")]
+
+
+NAME_CHECK_REASON = "PDF 내 상품명 자동 확인 실패"
+
+
+def apply_review_decisions(docs: dict, extra: dict, decisions: dict) -> None:
+    """확인 결과({doc_id: 결정})를 반영한다.
+
+    name_ok이면 상품명 자동 확인 실패 사유를 지우고, content_image이면 혜택 내용이 그림이라는 뜻이므로
+    OCR 필요(Y)로 바꾼다. 같은 내용(doc_id)의 파일에는 모두 적용된다.
+    """
+    for doc in docs.values():
+        decision = decisions.get(doc["doc_id"])
+        if decision is None:
+            continue
+        if decision["name_ok"]:
+            item = extra[doc["file_path"]]
+            item["reasons"] = [r for r in item["reasons"] if not r.startswith(NAME_CHECK_REASON)]
+        if decision["content_image"]:
+            doc["ocr_needed"] = "Y"
 
 
 def pick_canonical(docs: dict) -> dict[str, list[dict]]:
@@ -209,16 +229,18 @@ def make_summary(entries: list[dict], documents: list[dict], groups: dict, missi
 
 
 def build_index(
-    issuer: str, issuer_root: Path, entries: list[dict], measure, card_type_overrides: dict | None = None
+    issuer: str, issuer_root: Path, entries: list[dict], measure,
+    card_type_overrides: dict | None = None, review_decisions: dict | None = None,
 ) -> tuple[list[dict], list[dict], dict]:
     """entries는 어댑터가 만든 항목이고, measure는 measure_pdf와 같은 모양의 함수다.
 
-    card_type_overrides는 사람이 확인한 {상품명: 카드 구분}이다.
+    card_type_overrides는 사람이 확인한 {상품명: 카드 구분}, review_decisions는 {doc_id: 확인 결과}이다.
     반환: (documents 행, product_docs 행, 점검 요약)
     """
     by_path = group_by_path(entries)
     docs, extra, missing = measure_files(issuer, issuer_root, by_path, measure)
     apply_card_type_overrides(docs, extra, card_type_overrides or {})
+    apply_review_decisions(docs, extra, review_decisions or {})
     groups = pick_canonical(docs)
     drop_superseded_web_captures(docs, extra)
     product_docs = build_product_docs(issuer, entries, docs, groups, extra)

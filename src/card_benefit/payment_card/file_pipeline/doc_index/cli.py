@@ -33,11 +33,25 @@ def load_overrides(path: Path) -> dict:
         return {row["product_name"]: row["card_type"] for row in csv.DictReader(file)}
 
 
+def load_review_decisions(path: Path) -> dict:
+    """확인 결과 파일(doc_id, name_ok, content_image, …)을 읽는다. 파일이 없으면 빈 값이다."""
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8-sig", newline="") as file:
+        return {
+            row["doc_id"]: {"name_ok": row["name_ok"] == "Y", "content_image": row["content_image"] == "Y"}
+            for row in csv.DictReader(file)
+        }
+
+
 def run(issuer: str, data_root: Path, output_dir: Path, overwrite: bool = False) -> dict:
     issuer_root = data_root / f"{issuer}_all"
     entries, extra = ADAPTERS[issuer].load_entries(issuer_root)
     overrides = load_overrides(output_dir / issuer / "card_type_overrides.csv")
-    documents, product_docs, summary = build_index(issuer, issuer_root, entries, measure_pdf, overrides)
+    decisions = load_review_decisions(output_dir / issuer / "review_decisions.csv")
+    documents, product_docs, summary = build_index(
+        issuer, issuer_root, entries, measure_pdf, overrides, decisions
+    )
     summary.update(extra)
 
     out = output_dir / issuer

@@ -72,6 +72,24 @@ class BuildIndexTests(unittest.TestCase):
         self.assertEqual(docs[0]["review_reason"], "다른 사유")
         self.assertEqual(links[0]["card_type"], "debit")
 
+    def test_review_decision_clears_name_reason_and_marks_image_content(self):
+        e = entry("credit/c.pdf", "상품")
+        e["review_reasons"] = ["PDF 내 상품명 자동 확인 실패", "다른 사유"]
+        decisions = {"aa".ljust(16, "0"): {"name_ok": True, "content_image": True}}
+        docs, _, summary = build_index(
+            "x", Path("/none"), [e], fake_measure({"c.pdf": "aa"}), None, decisions
+        )
+        self.assertEqual(docs[0]["review_reason"], "다른 사유")
+        self.assertEqual(docs[0]["ocr_needed"], "Y")
+        self.assertEqual(summary["ocr_needed"], 1)
+
+    def test_review_decision_with_name_ok_only_keeps_ocr_flag(self):
+        e = entry("credit/c.pdf", "상품")
+        e["review_reasons"] = ["PDF 내 상품명 자동 확인 실패"]
+        decisions = {"aa".ljust(16, "0"): {"name_ok": True, "content_image": False}}
+        docs, _, _ = build_index("x", Path("/none"), [e], fake_measure({"c.pdf": "aa"}), None, decisions)
+        self.assertEqual((docs[0]["needs_review"], docs[0]["ocr_needed"]), ("N", "N"))
+
     def test_missing_file_is_reported_not_indexed(self):
         docs, links, summary = self.build([entry("credit/none.pdf", "A")], {})
         self.assertEqual((docs, links), ([], []))

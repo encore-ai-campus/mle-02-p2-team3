@@ -70,7 +70,7 @@ class ExtractionBatchTest(unittest.TestCase):
         self.assertIn("연결 오류", failure["failures"][0]["message"])
         self.assertIsNone(failure["extraction"])
         self.assertEqual(success["failures"], [])
-        self.assertEqual(len(prompts), 2)
+        self.assertEqual(len(prompts), 4)  # one initial attempt plus two retries for the failed chunk
 
     def test_resume_skips_existing_chunk_result(self):
         source = write_document(self.root, "doc1", [

@@ -11,6 +11,7 @@ from .batch import run_batch, summarize_batch
 from .diagnose import diagnose_empty_results
 from .llm_adapter import create_llm_call
 from .pilot import estimate_prompt_size, select_pilot_chunks
+from .verify import verify_results
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 
@@ -48,7 +49,25 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--model")
     run.add_argument("--api-key-env", default="OPENAI_API_KEY")
     run.add_argument("--max-chunks", type=int, default=5)
+    run.add_argument("--workers", type=int, default=1)
+    run.add_argument("--retries", type=int, default=2)
+    run.add_argument("--max-estimated-tokens", type=int, default=200000)
+    run.add_argument("--allow-large", action="store_true")
     run.add_argument("--execute", action="store_true", help="실제 LLM 호출을 허용")
+
+    verify = commands.add_parser("verify", help="저장된 결과의 거친 자동 점검 신호를 만든다")
+    verify.add_argument("--result-dir", type=Path, required=True)
+    verify.add_argument("--chunk-dir", type=Path, required=True)
+    verify.add_argument("--output-dir", type=Path, required=True)
+
+    pilot_run = commands.add_parser("pilot-run", help="표본 선정부터 그래프 CSV까지 순서대로 수행")
+    pilot_run.add_argument("--index-csv", type=Path, required=True)
+    pilot_run.add_argument("--chunk-dir", type=Path, required=True)
+    pilot_run.add_argument("--work-dir", type=Path, required=True)
+    pilot_run.add_argument("--count", type=int, required=True)
+    pilot_run.add_argument("--model", required=True)
+    pilot_run.add_argument("--workers", type=int, default=1)
+    pilot_run.add_argument("--execute", action="store_true")
 
     diagnose = commands.add_parser("diagnose-empty", help="빈 추출 결과를 원문 없이 분류한다")
     diagnose.add_argument("--chunk-dir", type=Path, required=True)
@@ -82,6 +101,15 @@ def main(argv: list[str] | None = None) -> int:
                 "empty_result_chunks": result["count"],
                 "output": result["output"],
             }, ensure_ascii=False))
+        elif args.command == "verify":
+            output = _outside_repo(args.output_dir)
+            result = verify_results(args.result_dir, args.chunk_dir, output)
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        elif args.command == "pilot-run":
+            from .pilot_run import run_pilot
+            plan = run_pilot(args.index_csv, args.chunk_dir, args.work_dir, args.count,
+                             args.model, args.workers, args.execute)
+            print(json.dumps(plan, ensure_ascii=False, sort_keys=True))
         else:
             output = _outside_repo(args.output_dir)
             files = sorted(args.chunk_dir.glob("*.chunks.json"))
@@ -89,8 +117,16 @@ def main(argv: list[str] | None = None) -> int:
             if args.execute:
                 if not args.model:
                     raise ValueError("실제 호출에는 --model이 필요합니다.")
+                estimate_ids = ids if ids is not None else [
+                    chunk["chunk_id"] for path in files
+                    for chunk in json.loads(path.read_text(encoding="utf-8")).get("chunks", [])
+                ][:args.max_chunks]
+                estimate = estimate_prompt_size(estimate_ids, args.chunk_dir)
+                if estimate["estimated_tokens"] > args.max_estimated_tokens and not args.allow_large:
+                    raise ValueError(f"예상 토큰 {estimate['estimated_tokens']}가 한도 {args.max_estimated_tokens}를 초과합니다. --allow-large로 허용하세요.")
                 call = create_llm_call(args.model, args.api_key_env)
-                result = run_batch(files, call, output, max_chunks=args.max_chunks, chunk_ids=ids)
+                result = run_batch(files, call, output, max_chunks=args.max_chunks, chunk_ids=ids,
+                                   workers=args.workers, retries=args.retries)
                 print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))
             else:
                 estimate_ids = ids if ids is not None else [

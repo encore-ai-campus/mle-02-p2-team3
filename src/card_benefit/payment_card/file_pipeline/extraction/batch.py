@@ -11,6 +11,7 @@ from urllib.parse import quote
 from typing import Any
 
 from .runner import run_chunk
+from .parallel import process_chunks, stderr_progress
 
 LLMCall = Callable[[str], str]
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -24,6 +25,8 @@ def run_batch(
     resume: bool = True,
     max_chunks: int | None = None,
     chunk_ids: Iterable[str] | None = None,
+    workers: int = 1,
+    retries: int = 2,
 ) -> dict[str, Any]:
     """청크 JSON 한 개나 여러 개를 처리하고 요약을 반환한다.
 
@@ -55,6 +58,7 @@ def run_batch(
                     if wanted_ids is None or chunk.get("chunk_id") in wanted_ids]
         results = []
         skipped = 0
+        pending = []
         for chunk in selected:
             if remaining is not None and remaining <= 0:
                 break
@@ -82,25 +86,20 @@ def run_batch(
             else:
                 if remaining is not None:
                     remaining -= 1
-                try:
-                    result = run_chunk(chunk, doc_sha256, llm_call)
-                except Exception as error:
-                    result = {
-                        "doc_sha256": doc_sha256,
-                        "page_no": chunk["page_no"],
-                        "chunk_id": chunk_id,
-                        "chunk_length": len(chunk["text"]),
-                        "extraction": None,
-                        "failures": [{
-                            "code": "llm_call_failure",
-                            "message": str(error),
-                            "exception_type": type(error).__name__,
-                        }],
-                        "notes": [],
-                    }
-                if existing_note:
-                    result.setdefault("notes", []).append(existing_note)
-                result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                pending.append((chunk, result_path, existing_note))
+                continue
+            results.append(result)
+
+        def save_completed(index, result):
+            _, result_path, existing_note = pending[index]
+            if existing_note:
+                result.setdefault("notes", []).append(existing_note)
+            result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        processed = process_chunks([item[0] for item in pending], doc_sha256, llm_call,
+                                   workers=workers, retries=retries, progress=stderr_progress,
+                                   on_result=save_completed)
+        for (chunk, result_path, existing_note), result in zip(pending, processed):
             results.append(result)
 
         summary = _summarize(results, skipped)

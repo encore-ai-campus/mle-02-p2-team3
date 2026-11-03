@@ -43,9 +43,13 @@ class _Entity(_Strict):
     evidence: list[Quote] = Field(min_length=1)
 
 
+BenefitMethod = Literal["DISCOUNT", "CASHBACK", "POINT"]   # 할인, 청구 시 적립(현금성), 포인트(하나머니 등)
+
+
 class Benefit(_Entity):
     name: str = Field(min_length=1)
-    rate: str | None = None      # 원문 표기 그대로 (예: "5%", "리터당 50원")
+    method: BenefitMethod | None = None   # 할인/적립 구분. 원문에 "할인 또는 적립 택1"이면 None으로 두고 Condition에 적는다
+    rate: str | None = None      # 원문 표기 그대로 (예: "5%", "리터당 50원", "0.5%")
     amount: str | None = None    # 원문 표기 그대로 (예: "3만원 이상")
 
 

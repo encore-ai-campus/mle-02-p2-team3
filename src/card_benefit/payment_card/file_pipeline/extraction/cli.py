@@ -73,6 +73,11 @@ def _parser() -> argparse.ArgumentParser:
     diagnose.add_argument("--chunk-dir", type=Path, required=True)
     diagnose.add_argument("--results-dir", type=Path, required=True)
     diagnose.add_argument("--output-dir", type=Path, required=True)
+
+    result_a = commands.add_parser("result-a", help="DRAFT stage 7 Result A JSONL")
+    result_a.add_argument("--result-dir", type=Path, required=True)
+    result_a.add_argument("--chunk-dir", type=Path, required=True)
+    result_a.add_argument("--output-dir", type=Path, required=True)
     return parser
 
 
@@ -110,6 +115,9 @@ def main(argv: list[str] | None = None) -> int:
             plan = run_pilot(args.index_csv, args.chunk_dir, args.work_dir, args.count,
                              args.model, args.workers, args.execute)
             print(json.dumps(plan, ensure_ascii=False, sort_keys=True))
+        elif args.command == "result-a":
+            from .result_a import export_result_a
+            print(json.dumps(export_result_a(args.result_dir, args.chunk_dir, _outside_repo(args.output_dir)), ensure_ascii=False, sort_keys=True))
         else:
             output = _outside_repo(args.output_dir)
             files = sorted(args.chunk_dir.glob("*.chunks.json"))

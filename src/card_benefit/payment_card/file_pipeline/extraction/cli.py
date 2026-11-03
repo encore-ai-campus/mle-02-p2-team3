@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-from .batch import run_batch, summarize_saved_results
+from .batch import run_batch, summarize_batch
 from .diagnose import diagnose_empty_results
 from .llm_adapter import create_llm_call
 from .pilot import estimate_prompt_size, select_pilot_chunks
@@ -36,6 +36,11 @@ def _parser() -> argparse.ArgumentParser:
     estimate.add_argument("--chunk-dir", type=Path, required=True)
     estimate.add_argument("--chunk-ids", type=Path, required=True, help="select가 만든 JSON 배열")
 
+    summarize = commands.add_parser("summarize", help="기존 결과 JSON만 다시 집계한다(LLM 호출 없음)")
+    summarize.add_argument("--chunk-dir", type=Path, required=True)
+    summarize.add_argument("--output-dir", type=Path, required=True, help="기존 결과 JSON 폴더")
+    summarize.add_argument("--chunk-ids", type=Path, help="지정 시 해당 청크 결과만 집계")
+
     run = commands.add_parser("run", help="드라이런 또는 명시적 실제 호출")
     run.add_argument("--chunk-dir", type=Path, required=True)
     run.add_argument("--output-dir", type=Path, required=True)
@@ -44,10 +49,6 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--api-key-env", default="OPENAI_API_KEY")
     run.add_argument("--max-chunks", type=int, default=5)
     run.add_argument("--execute", action="store_true", help="실제 LLM 호출을 허용")
-
-    summarize = commands.add_parser("summarize", help="저장된 결과만으로 문서 요약을 다시 만든다")
-    summarize.add_argument("--chunk-dir", type=Path, required=True)
-    summarize.add_argument("--output-dir", type=Path, required=True)
 
     diagnose = commands.add_parser("diagnose-empty", help="빈 추출 결과를 원문 없이 분류한다")
     diagnose.add_argument("--chunk-dir", type=Path, required=True)
@@ -71,7 +72,8 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "summarize":
             output = _outside_repo(args.output_dir)
             files = sorted(args.chunk_dir.glob("*.chunks.json"))
-            result = summarize_saved_results(files, output)
+            ids = json.loads(args.chunk_ids.read_text(encoding="utf-8")) if args.chunk_ids else None
+            result = summarize_batch(files, output, chunk_ids=ids)
             print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))
         elif args.command == "diagnose-empty":
             output = _outside_repo(args.output_dir)

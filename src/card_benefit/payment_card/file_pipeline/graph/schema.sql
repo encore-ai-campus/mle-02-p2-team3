@@ -43,9 +43,11 @@ create table if not exists public.pf_evidence (
   quote_status text not null check (quote_status in ('located', 'ambiguous', 'missing')),
   constraint pf_evidence_exactly_one_target check ((node_id is not null)::integer + (edge_id is not null)::integer = 1),
   constraint pf_evidence_sha256_shape check (doc_sha256 ~ '^[0-9a-fA-F]{64}$'),
-  -- 위치를 못 찾은 인용문(missing)만 위치 열이 비어도 된다. located/ambiguous는 위치가 필수다.
+  -- located만 위치가 있다. 위치를 못 찾은 인용문(missing)과 같은 문구가 여러 번 나오는 인용문(ambiguous)은
+  -- 임의로 첫 위치를 근거로 삼지 않으므로 위치 열을 비운다.
   constraint pf_evidence_position_by_status check (
-    (quote_status = 'missing') or (page_no is not null and start_pos is not null and end_pos is not null)
+    (quote_status = 'located' and page_no is not null and start_pos is not null and end_pos is not null)
+    or (quote_status in ('ambiguous', 'missing') and page_no is null and start_pos is null and end_pos is null)
   )
 );
 

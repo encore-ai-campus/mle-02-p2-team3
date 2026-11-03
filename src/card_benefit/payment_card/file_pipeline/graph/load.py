@@ -116,7 +116,7 @@ def validate_csvs(csv_dir):
         try:
             if not re.fullmatch(r"[0-9a-fA-F]{64}", row["doc_sha256"]):
                 raise ValueError
-            if status == "missing":
+            if status != "located":
                 if any(row[k] for k in ("page_no", "start_pos", "end_pos")):
                     raise ValueError
             elif int(row["page_no"]) < 1 or int(row["start_pos"]) < 1 or int(row["end_pos"]) < int(row["start_pos"]):

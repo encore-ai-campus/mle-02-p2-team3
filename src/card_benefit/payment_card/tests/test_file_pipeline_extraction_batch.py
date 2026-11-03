@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.batch import _summarize, run_batch, summarize_saved_results
+from payment_card.file_pipeline.extraction.batch import _summarize, run_batch, summarize_batch
 
 
 DOC_SHA256 = "a" * 64
@@ -192,7 +192,7 @@ class ExtractionBatchTest(unittest.TestCase):
         result = json.loads(result_path.read_text(encoding="utf-8"))
         result["failures"] = [{"code": "quote_location_ambiguous", "message": "중복", "path": "benefits[0].evidence[0]"}]
         result_path.write_text(json.dumps(result), encoding="utf-8")
-        summary = summarize_saved_results([source], self.output)["documents"][0]["summary"]
+        summary = summarize_batch([source], self.output)["documents"][0]["summary"]
         self.assertEqual((summary["succeeded"], summary["failed"], summary["with_warnings"]), (1, 1, 1))
         self.assertEqual(summary["warnings_by_code"], {"quote_location_ambiguous": 1})
         self.assertEqual(summary["failures_by_code"], {"llm_call_failure": 1, "quote_location_ambiguous": 1})
@@ -205,13 +205,25 @@ class ExtractionBatchTest(unittest.TestCase):
         ], skipped=0)
         self.assertEqual((summary["succeeded"], summary["failed"], summary["partial"]), (0, 1, 1))
 
-    def test_summarize_saved_results_never_calls_llm(self):
+    def test_summarize_batch_never_calls_llm(self):
         source = write_document(self.root, "doc1", [
             {"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1, "text": "혜택"},
         ])
         run_batch(source, lambda _: valid_response("혜택"), self.output)
-        result = summarize_saved_results([source], self.output)
+        result = summarize_batch([source], self.output)
         self.assertEqual(result["documents"][0]["summary"]["succeeded"], 1)
+
+    def test_ambiguous_quote_is_successful_extraction_but_requires_review(self):
+        source = write_document(self.root, "doc1", [
+            {"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1,
+             "text": "식비 할인, 식비 할인"},
+        ])
+
+        result = run_batch(source, lambda _: valid_response("식비 할인"), self.output, resume=False)
+
+        summary = result["documents"][0]["summary"]
+        self.assertEqual((summary["succeeded"], summary["failed"], summary["review_required"]), (1, 0, 1))
+        self.assertEqual(summary["quote_locations"], {"success": 0, "failure": 0, "ambiguous": 1})
 
 
 if __name__ == "__main__":

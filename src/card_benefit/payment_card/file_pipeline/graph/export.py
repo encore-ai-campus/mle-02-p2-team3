@@ -179,8 +179,12 @@ def _collect_evidence(output, quote_counts, invalid, evidence_items, path_prefix
     for idx, item in enumerate(evidence_items):
         path = f"{path_prefix}.evidence[{idx}]"
         location = item.get("location")
-        status = "missing" if location is None else ("ambiguous" if path in ambiguous else "located")
+        # 반복 인용문은 위치를 null로 두는 정책(데스크탑 runner)이므로 ambiguous를 먼저 판정한다.
+        status = "ambiguous" if path in ambiguous else ("missing" if location is None else "located")
         quote_counts[status] += 1
+        # 옛 결과(첫 위치를 저장하던 버전)도 받되, located가 아니면 위치를 비운다.
+        if status != "located":
+            location = None
         output.append({"node_id": node_id or "", "edge_id": edge_id or "", "doc_sha256": (location or {}).get("doc_sha256") or doc_sha.get(doc_id) or result.get("doc_sha256") or "", "page_no": (location or {}).get("page_no", ""), "start_pos": (location or {}).get("start_pos", ""), "end_pos": (location or {}).get("end_pos", ""), "quote_status": status})
 
 
@@ -191,7 +195,7 @@ def _valid_evidence_row(row, node_ids, edge_ids, invalid):
     try:
         if row["quote_status"] not in ("located", "ambiguous", "missing") or not re.fullmatch(r"[0-9a-fA-F]{64}", row["doc_sha256"]):
             raise ValueError
-        if row["quote_status"] != "missing":
+        if row["quote_status"] == "located":
             if not row["doc_sha256"] or int(row["page_no"]) < 1 or int(row["start_pos"]) < 1 or int(row["end_pos"]) < int(row["start_pos"]):
                 raise ValueError
         elif any(row[k] not in ("", None) for k in ("page_no", "start_pos", "end_pos")):

@@ -35,6 +35,14 @@ class ExtractionRunnerTest(unittest.TestCase):
         self.assertIn("evidence는 반드시 객체의 목록: 문자열이나 문자열 목록은 안 됨", prompt)
         self.assertIn(json.dumps(EXAMPLE_OUTPUT, ensure_ascii=False, indent=2), prompt)
 
+    def test_prompt_uses_simple_ascii_ids_for_entities(self):
+        prompt = build_prompt(CHUNK)
+        self.assertIn("Benefit은 b1, b2", prompt)
+        self.assertIn("Condition은 c1, c2", prompt)
+        self.assertIn("Limit은 l1, l2", prompt)
+        self.assertIn("Target은 t1, t2", prompt)
+        self.assertIn("관계 source와 target에는 해당 엔티티의 id를 그대로 복사", prompt)
+
     def test_prompt_lists_schema_fields_and_literal_values(self):
         prompt = build_prompt(CHUNK)
         for model in (Benefit, Condition, Limit, Target, Relation):
@@ -98,8 +106,10 @@ class ExtractionRunnerTest(unittest.TestCase):
         chunk = {**CHUNK, "text": "식비 5% 할인, 식비 5% 할인"}
         result = run_chunk(chunk, DOC_SHA256, lambda _: response())
         quote = result["extraction"]["benefits"][0]["evidence"][0]
-        self.assertIsNotNone(quote["location"])
-        self.assertTrue(any(f["code"] == "quote_location_ambiguous" for f in result["failures"]))
+        self.assertIsNone(quote["location"])
+        ambiguous = [f for f in result["failures"] if f["code"] == "quote_location_ambiguous"]
+        self.assertEqual(len(ambiguous), 1)
+        self.assertEqual(ambiguous[0]["occurrences"], 2)
 
 
 if __name__ == "__main__":

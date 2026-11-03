@@ -11,7 +11,7 @@ from .schema import ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Re
 EXAMPLE_OUTPUT = {
     "schema_ver": "ONTOLOGY_V1",
     "benefits": [{
-        "id": "benefit-1",
+        "id": "b1",
         "name": "식사 할인",
         "method": "DISCOUNT",
         "rate": "5%",
@@ -19,14 +19,14 @@ EXAMPLE_OUTPUT = {
         "evidence": [{"text": "식사 결제는 5% 할인되며"}],
     }],
     "conditions": [{
-        "id": "condition-1",
+        "id": "c1",
         "text": "3만원 이상 결제",
         "kind": "SPEND_REQ",
         "min_amount": 30000,
         "evidence": [{"text": "3만원 이상 결제 시 적용됩니다"}],
     }],
     "limits": [{
-        "id": "limit-1",
+        "id": "l1",
         "text": "월 할인 한도는 5천원",
         "period": "MONTH",
         "amount": 5000,
@@ -35,27 +35,27 @@ EXAMPLE_OUTPUT = {
         "evidence": [{"text": "월 할인 한도는 5천원"}],
     }],
     "targets": [{
-        "id": "target-1",
+        "id": "t1",
         "text": "식사 결제",
         "kind": "OTHER",
         "evidence": [{"text": "식사 결제"}],
     }],
     "relations": [
         {
-            "source": "benefit-1",
-            "target": "condition-1",
+            "source": "b1",
+            "target": "c1",
             "type": "HAS_CONDITION",
             "evidence": [{"text": "3만원 이상 결제 시 적용됩니다"}],
         },
         {
-            "source": "benefit-1",
-            "target": "limit-1",
+            "source": "b1",
+            "target": "l1",
             "type": "HAS_LIMIT",
             "evidence": [{"text": "월 할인 한도는 5천원"}],
         },
         {
-            "source": "benefit-1",
-            "target": "target-1",
+            "source": "b1",
+            "target": "t1",
             "type": "APPLIES_TO",
             "evidence": [{"text": "식사 결제는 5% 할인되며"}],
         },
@@ -145,8 +145,9 @@ def build_prompt(chunk: dict) -> str:
     return f"""카드 혜택 청크에서 혜택, 조건, 한도, 대상, 관계를 추출하세요.
 원문에 없는 내용을 추측하지 마세요. 모든 엔티티와 관계의 evidence에는 원문 그대로의 인용문을 하나 이상 넣으세요.
 evidence는 반드시 객체의 목록: 문자열이나 문자열 목록은 안 됨
-id는 예시처럼 benefit-1, condition-1, limit-1, target-1 형식의 순번형으로 만드세요. 의미 있는 이름을 id로 만들지 마세요.
-id에는 영문자, 숫자, 밑줄(_), 하이픈(-)만 허용합니다. 한글과 공백은 절대 쓰지 말고 1~64자로 만드세요. 전체 엔티티에서 id는 서로 달라야 합니다.
+id는 예시처럼 목록별 영문 접두사와 순번을 사용하세요: Benefit은 b1, b2; Condition은 c1, c2; Limit은 l1, l2; Target은 t1, t2. 의미 기반 이름은 id로 쓰지 마세요.
+id에는 ASCII 영문자, 숫자, 밑줄(_), 하이픈(-)만 허용합니다. 한글과 공백은 쓰지 말고 1~64자로 만드세요. 전체 엔티티에서 id는 서로 달라야 합니다.
+관계 source와 target에는 해당 엔티티의 id를 그대로 복사하세요.
 관계는 아래 허용 쌍만 사용하고, 자기 자신을 가리키거나 존재하지 않는 id를 참조하지 마세요.
 {relation_pairs}
 출력은 설명이나 마크다운 없이 JSON 객체만 반환하세요. 위치 숫자는 출력하지 마세요.

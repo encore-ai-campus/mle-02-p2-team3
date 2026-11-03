@@ -50,6 +50,8 @@ def test_export_remaps_relations_evidence_and_deduplicates_cards(tmp_path):
     assert sum(e["node_type"] == "Card" for e in nodes) == 1
     assert sum(e["edge_type"] == "OFFERS" for e in edges) == 1
     assert {e["quote_status"] for e in evidence} == {"located", "ambiguous", "missing"}
+    assert all(not (e["page_no"] or e["start_pos"] or e["end_pos"]) for e in evidence if e["quote_status"] != "located")
+    assert all(e["page_no"] and e["start_pos"] and e["end_pos"] for e in evidence if e["quote_status"] == "located")
     assert summary["invalid_rows"] == {}
 
 

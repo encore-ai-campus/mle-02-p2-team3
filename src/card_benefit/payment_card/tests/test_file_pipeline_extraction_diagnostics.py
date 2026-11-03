@@ -82,6 +82,52 @@ class DiagnosticModulesTest(unittest.TestCase):
         self.assertIn('status_code=400', str(caught.exception))
         self.assertIn('unsupported_parameter', str(caught.exception))
         self.assertNotIn('secret-key', str(caught.exception))
+        self.assertEqual((caught.exception.status_code, caught.exception.error_code, caught.exception.retryable), (400, 'unsupported_parameter', False))
+
+    def test_prompt_contains_verbatim_evidence_rules(self):
+        from payment_card.file_pipeline.extraction.prompt import build_prompt
+        prompt = build_prompt({'page_no': 1, 'start_pos': 1, 'text': 'x'})
+        self.assertIn('공백과 문장부호도 그대로 유지', prompt)
+        self.assertIn('여러 문장을 이어 붙이지 마세요', prompt)
+        self.assertIn('같은 문장에서 나온 항목은 합치세요', prompt)
+
+    def test_nonretryable_short_circuit_and_retryable_retry(self):
+        from payment_card.file_pipeline.extraction.parallel import process_chunks
+        chunks = [{'page_no': 1, 'start_pos': 1, 'chunk_id': 'c', 'text': 'x'}]
+        calls = []
+        def bad400(_):
+            calls.append(1)
+            error = RuntimeError('safe')
+            error.status_code, error.error_code, error.retryable = 400, 'unsupported_value', False
+            raise error
+        result = process_chunks(chunks, 'sha', bad400, retries=2)
+        self.assertEqual(len(calls), 1)
+        self.assertFalse(result[0]['failures'][0]['retryable'])
+        calls.clear()
+        def transient(_):
+            calls.append(1)
+            if len(calls) < 2:
+                error = RuntimeError('safe')
+                error.status_code, error.error_code, error.retryable = 429, 'rate_limit', True
+                raise error
+            return '{}'
+        process_chunks(chunks, 'sha', transient, retries=2)
+        self.assertEqual(len(calls), 2)
+
+    def test_fail_fast_leaves_unstarted_chunks_without_results(self):
+        from payment_card.file_pipeline.extraction.parallel import process_chunks
+        chunks = [{'page_no': 1, 'start_pos': 1, 'chunk_id': str(i), 'text': 'x'} for i in range(5)]
+        called = []
+        def bad400(_):
+            called.append(1)
+            error = RuntimeError('safe')
+            error.status_code, error.error_code, error.retryable = 400, 'unsupported_value', False
+            raise error
+        result = process_chunks(chunks, 'sha', bad400, retries=2, fail_fast_threshold=3)
+        self.assertEqual(len(called), 3)
+        self.assertEqual(result.started, 3)
+        self.assertEqual(result.stopped_reason, 'non-retryable error repeated 3 times (code=unsupported_value)')
+        self.assertEqual(result[3:], [None, None])
 
     def test_temperature_none_is_not_passed(self):
         captured = {}

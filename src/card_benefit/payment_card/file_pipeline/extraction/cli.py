@@ -55,6 +55,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--max-chunks", type=int, default=5)
     run.add_argument("--workers", type=int, default=1)
     run.add_argument("--retries", type=int, default=2)
+    run.add_argument("--no-fail-fast", action="store_true", help="반복 비재시도 오류에 대한 배치 중단을 끈다")
     run.add_argument("--max-estimated-tokens", type=int, default=200000)
     run.add_argument("--allow-large", action="store_true")
     run.add_argument("--execute", action="store_true", help="실제 LLM 호출을 허용")
@@ -164,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError(f"예상 토큰 {estimate['estimated_tokens']}가 한도 {args.max_estimated_tokens}를 초과합니다. --allow-large로 허용하세요.")
                 call = create_llm_call(args.model, args.api_key_env, temperature=args.temperature)
                 result = run_batch(files, call, output, max_chunks=args.max_chunks, chunk_ids=ids,
-                                   workers=args.workers, retries=args.retries)
+                                   workers=args.workers, retries=args.retries, fail_fast=not args.no_fail_fast)
                 print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))
             else:
                 estimate_ids = ids if ids is not None else [

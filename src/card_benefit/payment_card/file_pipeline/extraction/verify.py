@@ -8,6 +8,20 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _GROUPS = ("benefits", "conditions", "limits", "targets")
+_SHARING_KEYWORDS = ("합산", "통합", "공동", "함께 사용", "본인카드와 가족카드")
+
+
+def _shared_keyword_flags(group, item):
+    """Return coarse shared-limit keyword signals; this constant list is heuristic, not a semantic judgment."""
+    if group != "limits":
+        return []
+    quote_text = " ".join(e.get("text", "") for e in item.get("evidence", []))
+    has_keyword = any(keyword in quote_text for keyword in _SHARING_KEYWORDS)
+    if has_keyword and item.get("shared") is False:
+        return ["shared_keyword_mismatch"]
+    if not has_keyword and item.get("shared") is True:
+        return ["shared_flag_without_keyword"]
+    return []
 
 
 def _numbers(text):
@@ -56,6 +70,7 @@ def verify_results(result_dir, chunk_dir, output_dir):
         for group, item in ((g, i) for g in _GROUPS for i in extraction.get(g, [])):
             item_id = item.get("id")
             quote_text = " ".join(e.get("text", "") for e in item.get("evidence", []))
+            flags.extend({"item_id": item_id, "code": code} for code in _shared_keyword_flags(group, item))
             for value in _item_values(group, item):
                 if value is None:
                     continue

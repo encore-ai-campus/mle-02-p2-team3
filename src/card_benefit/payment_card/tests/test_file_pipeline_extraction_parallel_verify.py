@@ -39,6 +39,32 @@ class ParallelTests(unittest.TestCase):
 
 
 class VerifyTests(unittest.TestCase):
+    def test_shared_keyword_mismatch_flags_only_heuristic_conflicts(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); chunks = root / "chunks"; results = root / "results"; out = root / "out"
+            chunks.mkdir(); results.mkdir()
+            (chunks / "d.chunks.json").write_text(json.dumps({"chunks": [{"chunk_id": "c", "text": "x"}]}))
+            extraction = {
+                "benefits": [], "conditions": [], "targets": [], "relations": [],
+                "limits": [
+                    {"id": "l1", "shared": False, "evidence": [{"text": "합산 한도", "location": {}}]},
+                    {"id": "l2", "shared": True, "evidence": [{"text": "월 한도", "location": {}}]},
+                    {"id": "l3", "shared": False, "evidence": [{"text": "월 한도", "location": {}}]},
+                    {"id": "l4", "shared": True, "evidence": [{"text": "공동 한도", "location": {}}]},
+                ],
+            }
+            (results / "c.result.json").write_text(json.dumps({"chunk_id": "c", "extraction": extraction}))
+            verify_results(results, chunks, out)
+            payload = json.loads(next(out.glob("*.verify.json")).read_text())
+            self.assertEqual(
+                [(f["item_id"], f["code"]) for f in payload["flags"]],
+                [("l1", "shared_keyword_mismatch"), ("l1", "unlinked_item"),
+                 ("l2", "shared_flag_without_keyword"), ("l2", "unlinked_item"),
+                 ("l3", "unlinked_item"), ("l4", "unlinked_item")],
+            )
+            new_flags = [f for f in payload["flags"] if f["code"].startswith("shared_")]
+            self.assertTrue(all(set(flag) == {"item_id", "code"} for flag in new_flags))
+
     def test_numeric_unlinked_and_quote_ratio_flags_without_quotes(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d); chunks = root / "chunks"; results = root / "results"; out = root / "out"

@@ -33,6 +33,21 @@ def _safe_error_details(error: Exception, api_key: str) -> str:
     return re.sub(r"sk-[^\s,;]+", "[REDACTED]", result)
 
 
+def _classify_error(error: Exception, api_key: str) -> tuple[int | None, str | None, bool]:
+    status = getattr(error, "status_code", None)
+    status = status if isinstance(status, int) else None
+    body = getattr(error, "body", None)
+    err = body.get("error") if isinstance(body, dict) else None
+    code = err.get("code") if isinstance(err, dict) else getattr(error, "code", None)
+    code = str(code) if code is not None and isinstance(code, (str, int)) else None
+    if code is not None and (not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", code) or (api_key and api_key in code)):
+        code = None
+    retryable = status in {408, 409, 429} or (status is not None and status >= 500)
+    if status is None:
+        retryable = isinstance(error, (ConnectionError, TimeoutError)) or "timeout" in type(error).__name__.lower() or "connection" in type(error).__name__.lower()
+    return status, code, retryable
+
+
 def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
                     client_factory: Callable[..., Any] | None = None,
                     temperature: float | None = None) -> Callable[[str], str]:
@@ -67,7 +82,9 @@ def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
         except Exception as error:
             # SDK 예외에는 요청 정보가 포함될 수 있어 원문 메시지를 전달하지 않는다.
             details = _safe_error_details(error, api_key)
-            raise RuntimeError(f"LLM 호출 실패 ({details}).") from None
+            wrapped = RuntimeError(f"LLM 호출 실패 ({details}).")
+            wrapped.status_code, wrapped.error_code, wrapped.retryable = _classify_error(error, api_key)
+            raise wrapped from None
         content = getattr(response, "content", response)
         if not isinstance(content, str):
             raise RuntimeError("LLM 응답 본문이 문자열이 아닙니다.")

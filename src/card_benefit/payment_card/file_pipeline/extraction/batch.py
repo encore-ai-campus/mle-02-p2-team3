@@ -27,6 +27,7 @@ def run_batch(
     chunk_ids: Iterable[str] | None = None,
     workers: int = 1,
     retries: int = 2,
+    fail_fast: bool = True,
 ) -> dict[str, Any]:
     """청크 JSON 한 개나 여러 개를 처리하고 요약을 반환한다.
 
@@ -98,11 +99,16 @@ def run_batch(
 
         processed = process_chunks([item[0] for item in pending], doc_sha256, llm_call,
                                    workers=workers, retries=retries, progress=stderr_progress,
-                                   on_result=save_completed)
+                                   on_result=save_completed, fail_fast=fail_fast)
         for (chunk, result_path, existing_note), result in zip(pending, processed):
-            results.append(result)
+            if result is not None:
+                results.append(result)
 
         summary = _summarize(results, skipped)
+        summary.update({"fail_fast_stopped": bool(processed.stopped_reason),
+                        "stop_reason": processed.stopped_reason,
+                        "executed_chunks": processed.started,
+                        "unstarted_chunks": len(pending) - processed.started})
         summary_path = output / f"{quote(doc_id, safe='._-')}.summary.json"
         summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         documents.append({"doc_id": doc_id, "summary": summary, "summary_path": str(summary_path)})

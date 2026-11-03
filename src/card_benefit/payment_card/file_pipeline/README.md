@@ -34,7 +34,7 @@ flowchart LR
 | 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
-| 5 추출 스키마 | 뽑을 항목과 관계의 공통 계약 | 예정. 공통 계약 여부는 DB 쪽 작업 후 재개 |
+| 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/온톨로지-v1.md` |
 | 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 예정 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 

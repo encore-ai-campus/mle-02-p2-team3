@@ -24,8 +24,9 @@ flowchart LR
     classDef done fill:#cfe8cf,stroke:#4a8
     classDef doing fill:#fff1b8,stroke:#c90
     classDef todo fill:#eee,stroke:#999
-    class A,B,C,D done
-    class O,E,F todo
+    class A,B,C,D,E done
+    class O doing
+    class F todo
 ```
 
 | 단계 | 입력 → 출력 | 상태 |
@@ -35,7 +36,7 @@ flowchart LR
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
 | 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/온톨로지-v1.md` |
-| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 실행기 작성 (`extraction/prompt.py`, `runner.py`, 2026-11-03). LLM은 주입식이고 가짜 응답 테스트만 했다. 실제 시범 호출은 아직 없음 |
+| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 오프라인 준비 완료: 실행기·이어하기 배치·표본 선정·크기 추정·지연 OpenAI 어댑터·드라이런 CLI. 가짜 클라이언트 테스트, 실제 호출은 아직 없음 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
 ## 3. 폴더 구성
@@ -50,11 +51,15 @@ file_pipeline/
 │   ├── headings.py          글자 크기로 제목 줄을 찾아 쪽 원문 안의 위치로 변환, 표 안 제목은 제외
 │   ├── build.py             쪽 → 청크 변환과 "이어 붙이면 원문과 같은가" 검증
 │   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
-├── extraction/              5~6단계: 추출 스키마와 청크 1개 추출 실행기 (LLM 호출 없음, 호출 함수는 주입)
+├── extraction/              5~6단계: 추출 스키마, 청크 실행기와 시범 준비 도구
 │   ├── schema.py            온톨로지 v1 데이터 구조 (위치 숫자는 받지 않음)
 │   ├── evidence.py          인용문 → 쪽 원문 위치 변환
 │   ├── prompt.py            청크 1개용 프롬프트 (필드·허용값은 schema.py에서 읽음)
-│   └── runner.py            프롬프트 → 응답 파싱 → 스키마 검증 → 인용문 위치 부여, 실패는 구조화해 기록
+│   ├── runner.py            프롬프트 → 응답 파싱 → 스키마 검증 → 인용문 위치 부여, 실패는 구조화해 기록
+│   ├── batch.py             청크 JSON 순회, 청크별 결과·문서 요약 저장 (예외 격리, 이어하기). 출력은 저장소 밖
+│   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
+│   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
+│   └── cli.py               select / estimate / 기본 드라이런 run 실행 진입점
 ├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
 │   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
 │   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
@@ -109,11 +114,22 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 # 4단계: 3단계 JSON을 청크 JSON으로 (입력은 3단계 출력 폴더, 출력 폴더는 직접 지정)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.chunking.cli --issuer woori --trace-dir <3단계 출력 폴더> --output-dir <저장 폴더>
 
+# 6단계: 하나카드 청크 표본을 고르고 프롬프트 크기를 추정 (경로는 저장소 밖)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli select --index-csv src/card_benefit/data/index/hana/documents.csv --chunk-dir <하나 청크 폴더> --output <저장소 밖>/pilot.json --count 5
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli estimate --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json
+
+# 기본 run은 드라이런. 실제 호출에는 --execute와 모델 이름이 필요하며 키는 OPENAI_API_KEY에서 읽음
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli run --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json --output-dir <저장소 밖>/results --max-chunks 5
+
+# 실제 호출 예시: 먼저 OPENAI_API_KEY를 셸 환경에 설정하고, 모델명을 정한 뒤 명시적으로 실행
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli run --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json --output-dir <저장소 밖>/results --max-chunks 5 --model <모델명> --execute
+
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/
 ```
 
 JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하고 공유하거나 Git에 올리기 전에 내용을 확인한다.
+시범 표본의 표/규칙 키워드 탐지는 거친 선정 신호다. `run`은 `--execute`가 없으면 네트워크를 호출하지 않으며 기본 최대 새 호출 수는 5다.
 
 ## 6. 읽는 순서 (처음 보는 사람)
 

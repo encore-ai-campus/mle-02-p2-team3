@@ -17,7 +17,7 @@ Id = Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_\-]
 ConditionKind = Literal["SPEND_REQ", "EXCLUDE", "USAGE", "PAYMENT", "MERCHANT", "OTHER"]
 LimitPeriod = Literal["TXN", "DAY", "MONTH", "YEAR", "UNKNOWN"]
 TargetKind = Literal["MERCHANT", "INDUSTRY", "CHANNEL", "SERVICE", "OTHER"]
-RelationType = Literal["HAS_CONDITION", "HAS_LIMIT", "APPLIES_TO", "EXCLUDES"]
+RelationType = Literal["HAS_CONDITION", "HAS_LIMIT", "APPLIES_TO", "EXCLUDES", "MUTUALLY_EXCLUSIVE"]
 
 # 관계 유형마다 허용하는 (출발, 도착) 엔티티 종류
 ALLOWED_RELATIONS: dict[str, tuple[str, str]] = {
@@ -25,6 +25,7 @@ ALLOWED_RELATIONS: dict[str, tuple[str, str]] = {
     "HAS_LIMIT": ("Benefit", "Limit"),
     "APPLIES_TO": ("Benefit", "Target"),
     "EXCLUDES": ("Benefit", "Target"),
+    "MUTUALLY_EXCLUSIVE": ("Benefit", "Benefit"),   # "장기할부 청구할인과 중복 제공 안됨"
 }
 
 
@@ -51,11 +52,21 @@ class Benefit(_Entity):
 class Condition(_Entity):
     text: str = Field(min_length=1)
     kind: ConditionKind
+    min_amount: int | None = Field(default=None, ge=0)   # 실적·결제 기준 금액(원). "30만원 이상" -> 300000
 
 
 class Limit(_Entity):
     text: str = Field(min_length=1)    # 원문 표기 그대로 (예: "월 할인한도 5천원")
     period: LimitPeriod
+    amount: int | None = Field(default=None, ge=0)   # 금액·횟수. 원문에 숫자가 있을 때만
+    unlimited: bool = False   # "할인한도 제한 없음"
+    shared: bool = False      # "통합 월 2회"처럼 여러 혜택·회원이 나눠 쓰는 한도
+
+    @model_validator(mode="after")
+    def check_amount_or_unlimited(self) -> "Limit":
+        if self.unlimited and self.amount is not None:
+            raise ValueError("unlimited 한도는 amount를 가질 수 없습니다")
+        return self
 
 
 class Target(_Entity):
@@ -90,6 +101,8 @@ class Extraction(_Strict):
         for rel in self.relations:
             if rel.source not in kinds or rel.target not in kinds:
                 raise ValueError(f"관계가 없는 id를 가리킵니다: {rel.source} -> {rel.target}")
+            if rel.source == rel.target:
+                raise ValueError(f"관계가 자기 자신을 가리킵니다: {rel.source}")
             want_from, want_to = ALLOWED_RELATIONS[rel.type]
             if kinds[rel.source] != want_from or kinds[rel.target] != want_to:
                 raise ValueError(f"{rel.type}은 {want_from}->{want_to}만 허용합니다: {rel.source} -> {rel.target}")

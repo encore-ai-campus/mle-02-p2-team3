@@ -144,6 +144,39 @@ class SchemaTest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             Extraction.model_validate(data)
 
+    def test_condition_min_amount_is_integer_and_not_negative(self):
+        data = example_extraction()
+        data["conditions"][0]["min_amount"] = 300000
+        self.assertEqual(Extraction.model_validate(data).conditions[0].min_amount, 300000)
+        data["conditions"][0]["min_amount"] = -1
+        with self.assertRaises(ValidationError):
+            Extraction.model_validate(data)
+
+    def test_limit_unlimited_and_shared(self):
+        data = example_extraction()
+        quote = [{"text": "할인한도 제한 없음"}]
+        data["limits"] = [{"id": "l_free", "text": "할인한도 제한 없음", "period": "MONTH", "unlimited": True, "evidence": quote},
+                          {"id": "l_cap", "text": "통합 월 2회", "period": "MONTH", "amount": 2, "shared": True, "evidence": quote}]
+        limits = Extraction.model_validate(data).limits
+        self.assertTrue(limits[0].unlimited)
+        self.assertTrue(limits[1].shared)
+        data["limits"][0]["amount"] = 5
+        with self.assertRaises(ValidationError):
+            Extraction.model_validate(data)
+
+    def test_mutually_exclusive_links_two_benefits_only(self):
+        data = example_extraction()
+        data["benefits"].append({"id": "b_inst", "name": "장기할부 청구할인", "evidence": [{"text": "장기할부 청구할인"}]})
+        link = {"source": "b_food", "target": "b_inst", "type": "MUTUALLY_EXCLUSIVE", "evidence": [{"text": "중복 제공 안됨"}]}
+        data["relations"].append(link)
+        Extraction.model_validate(data)
+        data["relations"][-1] = {**link, "target": "c_excl"}      # 혜택-조건은 허용하지 않는다
+        with self.assertRaises(ValidationError):
+            Extraction.model_validate(data)
+        data["relations"][-1] = {**link, "target": "b_food"}      # 자기 자신도 안 된다
+        with self.assertRaises(ValidationError):
+            Extraction.model_validate(data)
+
 
 if __name__ == "__main__":
     unittest.main()

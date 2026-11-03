@@ -92,10 +92,12 @@ file_pipeline/
 │   ├── batch.py             인덱스의 대표 문서를 traceability로 일괄 변환
 │   ├── tables.py            표 보조본 추출 (아직 어디에서도 부르지 않음)
 │   └── adapters/            카드사별 원본 manifest → 공통 항목 변환 (hana.py, woori.py)
-├── notebooks/               눈으로 확인하는 보조용. 로직은 두지 않는다. 커밋 전 출력 삭제
+├── notebooks/               눈으로 확인하는 보조용. 청킹 탐색 노트북만 프로토타입 로직 포함. 커밋 전 출력 삭제
+│   ├── README.md                노트북 용도·보조 Python 코드 호출 관계·Mermaid 흐름
 │   ├── doc_index_check.ipynb    인덱스 결과 점검
 │   ├── chunking_explore.ipynb   청킹 기준 탐색
-│   └── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 기존 노트북
+│   ├── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 노트북
+│   └── extraction_audit.ipynb   저장된 추출 결과의 자동 신호·원문을 보는 보조 노트북
 ├── pilot_hana_15299/        하나 1건으로 원문 추적을 시험한 기록 (참고용)
 │   ├── 08_파일럿_결과.md  08_표본대조_결과.md  09_마감.md  check_sheet.md
 │   └── traceability.json
@@ -141,6 +143,7 @@ file_pipeline/
 | `eval_runs.py` | 같은 프롬프트 반복 또는 프롬프트별 성공·실패·빈 결과와 항목·근거 수를 요약하고, 반복 범위와 비교한다 |
 | `table_density_report.py` | 청크 텍스트만으로 표 밀도를 거칠게 나눠 결과 지표를 비교한다 (PDF를 열지 않음) |
 | `consensus.py` | 여러 실행에서 k회 이상 일치한 항목과 연결 관계만 새 결과 폴더에 저장한다. 정밀도가 높아지고 재현율은 낮아질 수 있다 |
+| `item_loss_report.py` | 반복 기준 그룹과 비교 그룹 사이의 사라진 후보·불안정 항목·새 항목 수를 종류·길이·표 밀도로 집계한다. 안정 항목 분모와 비율을 출력하며, `--fuzzy --fuzzy-threshold 0.8`로 거친 표기 유사 매칭을 켤 수 있다. 항목 텍스트는 출력하지 않으며 정확성을 판단하지 않는다 |
 
 **④ 복구·내보내기**
 

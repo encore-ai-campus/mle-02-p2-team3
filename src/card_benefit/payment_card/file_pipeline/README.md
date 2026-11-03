@@ -45,6 +45,8 @@ flowchart LR
 file_pipeline/
 ├── README.md                이 문서
 ├── __init__.py
+├── sql/                     파일 기반 파이프라인용 PostgreSQL 스키마 명세
+│   └── card_benefit_schema.sql
 ├── traceability.py          3단계: PDF 1개 → 쪽별 원문 + 청크 위치 JSON
 ├── chunking/                4단계: 쪽 원문을 청크로 자름
 │   ├── split.py             쪽 원문 + 제목 위치 → 자를 조각 (PDF를 열지 않는 순수 함수)
@@ -53,6 +55,7 @@ file_pipeline/
 │   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
 ├── graph/                   지식그래프 CSV 변환·적재 및 논리 설계
 │   ├── README.md            엔티티·근거 규칙·CSV 적재 계약
+│   ├── queries.sql          pf_ 테이블만 대상으로 하는 읽기 전용 질의 예시
 │   ├── schema.sql           public pf_ 테이블 및 관계 검사 초안
 │   ├── export.py            추출 결과와 인덱스 → 검증된 pf_ CSV
 │   └── load.py              기본 드라이런, 명시적 실행 옵션의 CSV 적재기
@@ -60,6 +63,7 @@ file_pipeline/
 │   ├── schema.py            온톨로지 v1 데이터 구조 (위치 숫자는 받지 않음)
 │   ├── evidence.py          인용문 → 쪽 원문 위치 변환
 │   ├── prompt.py            청크 1개용 프롬프트 (필드·허용값은 schema.py에서 읽음)
+│   ├── ambiguity_report.py  모호 인용문 길이·반복 횟수·섹션 분석 (인용문 원문 미기록)
 │   ├── runner.py            프롬프트 → 응답 파싱 → 스키마 검증 → 인용문 위치 부여, 실패는 구조화해 기록
 │   ├── batch.py             청크 JSON 순회, 청크별 결과·문서 요약 저장 (예외 격리, 이어하기). 출력은 저장소 밖
 │   ├── parallel.py          청크 동시 실행(최대 16), 지수 재시도와 진행 숫자 출력
@@ -71,6 +75,7 @@ file_pipeline/
 │   ├── pilot_run.py         선택·추정·실행·요약·검증·그래프 내보내기 흐름 묶음
 │   ├── diagnose.py          빈 추출 결과를 제목·길이·키워드 수로 분류 (원문은 출력하지 않음)
 │   ├── review_sheet.py      추출 성공 청크 N개를 사람이 원문과 대조하는 마크다운 대조표로 만듦 (원문 포함, 저장소 밖에만 저장)
+│   ├── review_tally.py      사람이 채운 대조표의 표시 수와 검토 정확도 비율 집계 (원문은 출력하지 않음)
 │   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
 │   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
 │   └── cli.py               select / estimate / summarize / run / verify / pilot-run / diagnose-locate / relocate / variance / result-a 진입점
@@ -90,6 +95,8 @@ file_pipeline/
 │   ├── 08_파일럿_결과.md  08_표본대조_결과.md  09_마감.md  check_sheet.md
 │   └── traceability.json
 ```
+
+`sql/card_benefit_schema.sql` 은 전달받은 카드 문서·AI 추출·혜택 스키마 명세를 PostgreSQL DDL로 옮긴 참고 파일이다. 현재 `file_pipeline` 실행 코드는 JSON 파일을 사용하며 이 SQL을 자동 적용하지 않는다.
 
 ## 4. 모듈 호출 관계
 
@@ -178,6 +185,9 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 
 # 빈 추출 결과 분류 (LLM 호출 없음, 결과에는 청크 원문을 저장하지 않음)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli diagnose-empty --chunk-dir <하나 청크 폴더> --results-dir <저장소 밖>/results --output-dir <저장소 밖>/diagnosis
+
+# 사람이 채운 검토표의 표시 수와 비율 집계 (원문이나 인용문은 출력하지 않음)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.review_tally --sheet <저장소 밖>/review_sheet.md --output-dir <저장소 밖>/review_tally
 
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/

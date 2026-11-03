@@ -43,6 +43,12 @@ class ExtractionRunnerTest(unittest.TestCase):
         self.assertIn("Target은 t1, t2", prompt)
         self.assertIn("관계 source와 target에는 해당 엔티티의 id를 그대로 복사", prompt)
 
+    def test_prompt_prefers_unique_distinctive_quote_within_one_sentence(self):
+        prompt = build_prompt(CHUNK)
+        self.assertIn("같은 인용문이 청크 안에 두 번 이상 나오지 않도록", prompt)
+        self.assertIn("금액·업종명·혜택명", prompt)
+        self.assertIn("한 문장 안에서", prompt)
+
     def test_prompt_lists_schema_fields_and_literal_values(self):
         prompt = build_prompt(CHUNK)
         for model in (Benefit, Condition, Limit, Target, Relation):

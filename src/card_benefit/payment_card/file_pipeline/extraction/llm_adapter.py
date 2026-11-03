@@ -34,7 +34,8 @@ def _safe_error_details(error: Exception, api_key: str) -> str:
 
 
 def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
-                    client_factory: Callable[..., Any] | None = None) -> Callable[[str], str]:
+                    client_factory: Callable[..., Any] | None = None,
+                    temperature: float | None = None) -> Callable[[str], str]:
     """모델 호출 함수를 만든다. 키 값은 환경변수에서만 읽고 표시하지 않는다.
 
     기본 클라이언트는 저장소의 `ChatOpenAI(model=..., api_key=...)` 관례다.
@@ -53,7 +54,10 @@ def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
             raise RuntimeError("OpenAI 호출에 필요한 langchain-openai SDK가 설치되어 있지 않습니다.") from None
         client_factory = ChatOpenAI
     try:
-        client = client_factory(model=model, api_key=api_key)
+        client_args = {"model": model, "api_key": api_key}
+        if temperature is not None:
+            client_args["temperature"] = temperature
+        client = client_factory(**client_args)
     except Exception as error:
         raise RuntimeError(f"LLM 클라이언트 생성 실패 ({type(error).__name__}).") from None
 

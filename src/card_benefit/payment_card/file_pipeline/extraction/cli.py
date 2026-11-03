@@ -12,6 +12,9 @@ from .diagnose import diagnose_empty_results
 from .llm_adapter import create_llm_call
 from .pilot import estimate_prompt_size, select_pilot_chunks
 from .verify import verify_results
+from .locate_diagnose import diagnose_locations, TYPES
+from .relocate import relocate_results
+from .variance import compare_variance
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 
@@ -47,6 +50,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--output-dir", type=Path, required=True)
     run.add_argument("--chunk-ids", type=Path, help="select가 만든 JSON 배열 (지정 시 해당 청크만 처리)")
     run.add_argument("--model")
+    run.add_argument("--temperature", type=float)
     run.add_argument("--api-key-env", default="OPENAI_API_KEY")
     run.add_argument("--max-chunks", type=int, default=5)
     run.add_argument("--workers", type=int, default=1)
@@ -68,6 +72,21 @@ def _parser() -> argparse.ArgumentParser:
     pilot_run.add_argument("--model", required=True)
     pilot_run.add_argument("--workers", type=int, default=1)
     pilot_run.add_argument("--execute", action="store_true")
+    pilot_run.add_argument("--temperature", type=float)
+
+    diagnose_locate = commands.add_parser("diagnose-locate", help="인용 위치 실패를 원문 없이 분류")
+    diagnose_locate.add_argument("--result-dir", type=Path, required=True)
+    diagnose_locate.add_argument("--chunk-dir", type=Path, required=True)
+    diagnose_locate.add_argument("--output-dir", type=Path, required=True)
+
+    relocate = commands.add_parser("relocate", help="공백·문장부호 차이만 보수적으로 위치 재탐색")
+    relocate.add_argument("--result-dir", type=Path, required=True)
+    relocate.add_argument("--chunk-dir", type=Path, required=True)
+    relocate.add_argument("--output-dir", type=Path, required=True)
+
+    variance = commands.add_parser("variance", help="반복 실행 결과의 청크별 편차 비교")
+    variance.add_argument("--result-dirs", type=Path, nargs="+", required=True)
+    variance.add_argument("--output-dir", type=Path, required=True)
 
     diagnose = commands.add_parser("diagnose-empty", help="빈 추출 결과를 원문 없이 분류한다")
     diagnose.add_argument("--chunk-dir", type=Path, required=True)
@@ -110,10 +129,21 @@ def main(argv: list[str] | None = None) -> int:
             output = _outside_repo(args.output_dir)
             result = verify_results(args.result_dir, args.chunk_dir, output)
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        elif args.command == "diagnose-locate":
+            output = _outside_repo(args.output_dir)
+            result = diagnose_locations(args.result_dir, args.chunk_dir, output)
+            print(json.dumps({"by_type": result["by_type"], "by_chunk": result["by_chunk"]}, ensure_ascii=False, sort_keys=True))
+        elif args.command == "relocate":
+            output = _outside_repo(args.output_dir)
+            result = relocate_results(args.result_dir, args.chunk_dir, output)
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        elif args.command == "variance":
+            output = _outside_repo(args.output_dir)
+            print(json.dumps(compare_variance(args.result_dirs, output), ensure_ascii=False, sort_keys=True))
         elif args.command == "pilot-run":
             from .pilot_run import run_pilot
             plan = run_pilot(args.index_csv, args.chunk_dir, args.work_dir, args.count,
-                             args.model, args.workers, args.execute)
+                             args.model, args.workers, args.execute, args.temperature)
             print(json.dumps(plan, ensure_ascii=False, sort_keys=True))
         elif args.command == "result-a":
             from .result_a import export_result_a
@@ -132,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
                 estimate = estimate_prompt_size(estimate_ids, args.chunk_dir)
                 if estimate["estimated_tokens"] > args.max_estimated_tokens and not args.allow_large:
                     raise ValueError(f"예상 토큰 {estimate['estimated_tokens']}가 한도 {args.max_estimated_tokens}를 초과합니다. --allow-large로 허용하세요.")
-                call = create_llm_call(args.model, args.api_key_env)
+                call = create_llm_call(args.model, args.api_key_env, temperature=args.temperature)
                 result = run_batch(files, call, output, max_chunks=args.max_chunks, chunk_ids=ids,
                                    workers=args.workers, retries=args.retries)
                 print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))

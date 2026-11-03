@@ -65,12 +65,15 @@ file_pipeline/
 │   ├── parallel.py          청크 동시 실행(최대 16), 지수 재시도와 진행 숫자 출력
 │   ├── verify.py            저장 결과의 숫자·관계 연결·인용 위치 신호 점검 (판정 아님)
 │   ├── result_a.py          7단계 Result A JSONL 초안 (8단계 counterpart 정렬 대기)
+│   ├── locate_diagnose.py   인용 위치 실패를 원문 없이 유형 분류
+│   ├── relocate.py          공백·문장부호 차이만 유일 일치 시 위치 재탐색
+│   ├── variance.py          반복 결과의 항목 수·집합·성공 편차 비교
 │   ├── pilot_run.py         선택·추정·실행·요약·검증·그래프 내보내기 흐름 묶음
 │   ├── diagnose.py          빈 추출 결과를 제목·길이·키워드 수로 분류 (원문은 출력하지 않음)
 │   ├── review_sheet.py      추출 성공 청크 N개를 사람이 원문과 대조하는 마크다운 대조표로 만듦 (원문 포함, 저장소 밖에만 저장)
 │   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
 │   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
-│   └── cli.py               select / estimate / summarize / run / verify / pilot-run / result-a 진입점
+│   └── cli.py               select / estimate / summarize / run / verify / pilot-run / diagnose-locate / relocate / variance / result-a 진입점
 ├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
 │   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
 │   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
@@ -141,6 +144,15 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 # 저장 결과 자동 신호 점검 (원문이나 인용문은 출력하지 않음)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli verify --result-dir <저장소 밖>/results --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/verification
 
+# 인용 위치 실패 분류 (출력 JSON에는 청크 id·경로·분류·길이·일치 비율만 저장)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli diagnose-locate --result-dir <저장소 밖>/results --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/locate-diagnosis
+
+# 공백·문장부호 유형만 유일 일치할 때 별도 결과 폴더에서 위치 복구
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli relocate --result-dir <저장소 밖>/results --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/relocated-results
+
+# 반복 실행 결과 폴더 2개 이상 비교
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli variance --result-dirs <저장소 밖>/run1/results <저장소 밖>/run2/results <저장소 밖>/run3/results --output-dir <저장소 밖>/variance
+
 # 한 명령으로 계획 출력. 실행 시에만 --execute 추가 (최대 추정 200000 토큰)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli pilot-run --index-csv src/card_benefit/data/index/hana/documents.csv --chunk-dir <하나 청크 폴더> --work-dir <저장소 밖>/pilot_run --count 5 --model <모델명> --workers 1
 
@@ -175,6 +187,17 @@ JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하�
 시범 표본의 표/규칙 키워드 탐지는 거친 선정 신호다. `run`은 `--execute`가 없으면 네트워크를 호출하지 않으며 기본 최대 새 호출 수는 5다. 기본 예상 토큰 한도는 200000이며 초과 시 실행을 거부하고 `--allow-large`로 해제한다. `--workers`는 1~16 범위로 제한하고 호출 예외는 기본 2회 재시도한다. `summarize`는 기존 결과 폴더의 청크별 JSON만 다시 집계하고, 아직 결과가 없는 청크는 `missing_results`로 표시한다. 청크 폴더에 없는 요청 ID는 오류로 중단한다. 프롬프트 버전을 비교할 때는 결과 폴더를 구분해 각각 집계한다. `verify`는 원문 근거를 판정하지 않는 신호이며 숫자·단위 비교도 거친 검사다. `pilot-run` 계획 모드는 DB/LLM 호출 없이 선택과 추정만 수행한다.
 
 `result_a.py`와 `result-a`는 stage 7의 **DRAFT**다. 저장된 결과에서 위치·유형·정규화 값을 내보내며 인용문 텍스트를 포함하지 않는다. 위치 없는 행은 별도 JSONL로 분리하고, stage 8에서 counterpart와 정렬한다.
+
+같은 청크를 세 번 비교하려면 각 `run`에서 같은 `--chunk-ids`와 청크 폴더를 사용하고 출력 경로만 나눈다. 아래 예시는 실제 호출이므로 실행할 때 `--execute`가 필요하며, API 키는 환경변수로만 전달한다. `--temperature 0`은 지원 모델에서 변동성을 줄이는 설정이고, 미지정 시 SDK 기본 동작을 유지한다.
+
+```bash
+for n in 1 2 3; do
+  PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli run --chunk-dir ~/pilot_work/chunks/hana --chunk-ids ~/pilot_work/pilot_ids20.json --output-dir ~/pilot_work/repeat$n/results --max-chunks 20 --model <모델명> --temperature 0 --execute
+done
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli variance --result-dirs ~/pilot_work/repeat1/results ~/pilot_work/repeat2/results ~/pilot_work/repeat3/results --output-dir ~/pilot_work/repeat-variance
+```
+
+`variance`의 항목 집합 키는 유형과 정규화된 이름·텍스트·종류를 사용하며 인용문을 비교하지 않는다. 항목 수 변동이 큰 청크는 변동계수 0.5 이상으로 집계한다. 결과 JSON은 청크 id와 수치 지표만 저장한다.
 
 ## 6. 읽는 순서 (처음 보는 사람)
 

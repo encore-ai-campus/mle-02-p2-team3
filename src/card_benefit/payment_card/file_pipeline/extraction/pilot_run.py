@@ -11,7 +11,7 @@ from .pilot import estimate_prompt_size
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
-def run_pilot(index_csv, chunk_dir, work_dir, count, model, workers=1, execute=False):
+def run_pilot(index_csv, chunk_dir, work_dir, count, model, workers=1, execute=False, temperature=None):
     index_csv, chunk_dir = Path(index_csv), Path(chunk_dir)
     work_dir = Path(work_dir).expanduser().resolve()
     if work_dir == _REPO_ROOT or _REPO_ROOT in work_dir.parents:
@@ -54,7 +54,7 @@ def run_pilot(index_csv, chunk_dir, work_dir, count, model, workers=1, execute=F
     ids_file = work_dir / "selected.json"
     ids_file.write_text(json.dumps(ids) + "\n", encoding="utf-8")
     result_dir = work_dir / "results"
-    call = create_llm_call(model)
+    call = create_llm_call(model, temperature=temperature)
     run = run_batch(sorted(chunk_dir.glob("*.chunks.json")), call, result_dir, chunk_ids=ids, workers=workers)
     summary = summarize_batch(sorted(chunk_dir.glob("*.chunks.json")), result_dir, chunk_ids=ids)
     verification = verify_results(result_dir, chunk_dir, work_dir / "verification")

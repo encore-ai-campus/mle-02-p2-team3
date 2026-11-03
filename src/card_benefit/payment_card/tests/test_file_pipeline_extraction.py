@@ -59,6 +59,20 @@ class LocateQuoteTest(unittest.TestCase):
         self.assertTrue(loc.matched.startswith("식비"))
         self.assertTrue(loc.matched.endswith("5%"))
 
+    def test_other_control_characters_after_bullet_are_ignored(self):
+        # 우리카드 청크 8af8617177f0f472-p0001-c01, 9d762a0fffd6037e-p0002-c01의 글머리표 뒤 U+0001·U+0003. 발췌다.
+        for text, quote, tail in (
+            (" • \x01결제계좌 개설기관의 영업 마감시간(16시) 이후 결제계좌에 입금된 금액에 대해서는",
+             "• 결제계좌 개설기관의 영업 마감시간(16시) 이후", "이후"),
+            ("• \x03‘우리WON멤버스’ 회원은 ‘우리WON꿀머니’로, 비회원은 ‘모아포인트’로",
+             "• ‘우리WON멤버스’ 회원은", "회원은"),
+        ):
+            loc = locate_quote(text, 5, quote)
+            self.assertIsNotNone(loc, quote)
+            self.assertTrue(loc.matched.startswith("•"))
+            self.assertTrue(loc.matched.endswith(tail))
+            self.assertEqual(text[loc.start_pos - 5:loc.end_pos - 5 + 1], loc.matched)  # 쪽 5번째 글자부터
+
     def test_missing_quote_returns_none(self):
         self.assertIsNone(locate_quote(EXCERPT, CHUNK_START, "이 문장은 청크에 없습니다"))
 

@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 
 from .batch import run_batch, summarize_saved_results
+from .diagnose import diagnose_empty_results
 from .llm_adapter import create_llm_call
 from .pilot import estimate_prompt_size, select_pilot_chunks
 
@@ -47,6 +48,11 @@ def _parser() -> argparse.ArgumentParser:
     summarize = commands.add_parser("summarize", help="저장된 결과만으로 문서 요약을 다시 만든다")
     summarize.add_argument("--chunk-dir", type=Path, required=True)
     summarize.add_argument("--output-dir", type=Path, required=True)
+
+    diagnose = commands.add_parser("diagnose-empty", help="빈 추출 결과를 원문 없이 분류한다")
+    diagnose.add_argument("--chunk-dir", type=Path, required=True)
+    diagnose.add_argument("--results-dir", type=Path, required=True)
+    diagnose.add_argument("--output-dir", type=Path, required=True)
     return parser
 
 
@@ -67,6 +73,13 @@ def main(argv: list[str] | None = None) -> int:
             files = sorted(args.chunk_dir.glob("*.chunks.json"))
             result = summarize_saved_results(files, output)
             print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))
+        elif args.command == "diagnose-empty":
+            output = _outside_repo(args.output_dir)
+            result = diagnose_empty_results(args.results_dir, args.chunk_dir, output)
+            print(json.dumps({
+                "empty_result_chunks": result["count"],
+                "output": result["output"],
+            }, ensure_ascii=False))
         else:
             output = _outside_repo(args.output_dir)
             files = sorted(args.chunk_dir.glob("*.chunks.json"))

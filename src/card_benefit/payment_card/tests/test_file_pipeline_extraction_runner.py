@@ -4,7 +4,9 @@ import json
 import unittest
 
 from payment_card.file_pipeline.extraction.runner import run_chunk
-from payment_card.file_pipeline.extraction.prompt import EXAMPLE_OUTPUT, build_prompt
+from payment_card.file_pipeline.extraction.prompt import (
+    ENUM_DESCRIPTIONS, EXAMPLE_OUTPUT, build_prompt, enum_values_from_schema,
+)
 from payment_card.file_pipeline.extraction.schema import (
     ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target,
 )
@@ -45,6 +47,11 @@ class ExtractionRunnerTest(unittest.TestCase):
             self.assertIn(f"{name}: {source}→{target}", prompt)
         for rule in ("shared=true", "method=None", "kind=EXCLUDE", "확실하지 않으면 연결하지 마세요"):
             self.assertIn(rule, prompt)
+        self.assertIn("목록 밖의 값을 만들지 마세요", prompt)
+
+    def test_every_schema_enum_has_exactly_one_description(self):
+        self.assertEqual(set(ENUM_DESCRIPTIONS), enum_values_from_schema())
+        self.assertTrue(all(description.strip() for description in ENUM_DESCRIPTIONS.values()))
 
     @classmethod
     def _literal_values(cls, annotation):

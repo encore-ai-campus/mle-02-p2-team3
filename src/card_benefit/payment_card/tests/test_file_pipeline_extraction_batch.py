@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.batch import run_batch, summarize_saved_results
+from payment_card.file_pipeline.extraction.batch import _summarize, run_batch, summarize_saved_results
 
 
 DOC_SHA256 = "a" * 64
@@ -196,6 +196,14 @@ class ExtractionBatchTest(unittest.TestCase):
         self.assertEqual((summary["succeeded"], summary["failed"], summary["with_warnings"]), (1, 1, 1))
         self.assertEqual(summary["warnings_by_code"], {"quote_location_ambiguous": 1})
         self.assertEqual(summary["failures_by_code"], {"llm_call_failure": 1, "quote_location_ambiguous": 1})
+
+    def test_quote_location_only_failure_counts_as_failed_and_partial(self):
+        summary = _summarize([
+            {"chunk_length": 12, "extraction": {"benefits": [], "conditions": [], "limits": [],
+             "targets": [], "relations": []},
+             "failures": [{"code": "quote_location_failure"}]},
+        ], skipped=0)
+        self.assertEqual((summary["succeeded"], summary["failed"], summary["partial"]), (0, 1, 1))
 
     def test_summarize_saved_results_never_calls_llm(self):
         source = write_document(self.root, "doc1", [

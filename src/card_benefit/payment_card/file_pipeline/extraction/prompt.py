@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Literal, get_args, get_origin
 
-from .schema import ALLOWED_RELATIONS, Benefit, Condition, Limit, Relation, Target
+from .schema import ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target
 
 
 EXAMPLE_OUTPUT = {
@@ -62,6 +62,33 @@ EXAMPLE_OUTPUT = {
     ],
 }
 
+# Description text only; enum values always come from schema.py Literal annotations.
+ENUM_DESCRIPTIONS = {
+    "ONTOLOGY_V1": "현재 온톨로지 스키마 버전",
+    "DISCOUNT": "할인",
+    "CASHBACK": "청구 시 현금성 적립",
+    "POINT": "포인트 적립",
+    "SPEND_REQ": "전월 실적·결제 기준 금액 조건",
+    "EXCLUDE": "실적·혜택 제외 항목",
+    "USAGE": "이용 방식/횟수 조건",
+    "PAYMENT": "결제 수단/방식",
+    "MERCHANT": "가맹점 조건 또는 대상",
+    "OTHER": "그 밖의 조건 또는 대상",
+    "TXN": "거래 1건 기준",
+    "DAY": "일 한도",
+    "MONTH": "월 한도",
+    "YEAR": "연 한도",
+    "UNKNOWN": "기간을 알 수 없음",
+    "INDUSTRY": "업종 대상",
+    "CHANNEL": "결제 채널 대상",
+    "SERVICE": "서비스 대상",
+    "HAS_CONDITION": "혜택에 조건을 연결",
+    "HAS_LIMIT": "혜택에 한도를 연결",
+    "APPLIES_TO": "혜택이 적용되는 대상을 연결",
+    "EXCLUDES": "혜택에서 제외되는 대상을 연결",
+    "MUTUALLY_EXCLUSIVE": "혜택 간 중복 불가 관계",
+}
+
 
 def _literal_values(annotation: object) -> list[str]:
     """타입 표기 안에 들어 있는 Literal 값을 모은다(선택 타입 포함)."""
@@ -80,6 +107,26 @@ def _model_fields(model: type) -> str:
         enums = _literal_values(field.annotation)
         suffix = f"; 허용값: {', '.join(enums)}" if enums else ""
         lines.append(f"- {name}: {requirement}{suffix}")
+    return "\n".join(lines)
+
+
+def _enum_values(annotation: object) -> list[str]:
+    if get_origin(annotation) is Literal:
+        return [str(value) for value in get_args(annotation)]
+    return [value for arg in get_args(annotation) for value in _enum_values(arg)]
+
+
+def enum_values_from_schema() -> set[str]:
+    """모든 스키마 모델의 Literal 필드에서 enum 값을 수집한다."""
+    values = set()
+    for model in (Extraction, Benefit, Condition, Limit, Target, Relation):
+        for field in model.model_fields.values():
+            values.update(_enum_values(field.annotation))
+    return values
+
+
+def _enum_summary() -> str:
+    lines = [f"- {value}: {ENUM_DESCRIPTIONS[value]}" for value in sorted(enum_values_from_schema())]
     return "\n".join(lines)
 
 
@@ -110,6 +157,9 @@ id에는 영문자, 숫자, 밑줄(_), 하이픈(-)만 허용합니다. 한글�
 
 필드와 허용값 (필수/선택 필드는 스키마 기준):
 {schema_fields}
+
+**모든 enum 허용값과 뜻 (목록 밖의 값을 만들지 마세요. 확신이 없으면 해당 enum에 OTHER가 있을 때는 OTHER를 쓰고, 없으면 항목을 생략하세요):**
+{_enum_summary()}
 
 추출 규칙:
 - 혜택 문장에 직접 붙은 한도는 그 혜택에 연결하세요.

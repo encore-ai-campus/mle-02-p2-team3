@@ -114,9 +114,11 @@ def run_batch(
 def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
     """저장된 청크 결과에서 문서 단위 집계를 만든다.
 
-    succeeded/failed는 hard 실패 코드만 기준으로 한다. quote_location_ambiguous는
-    경고이며 failures_by_code에는 기존처럼 모든 코드가 포함된다. with_warnings는
-    경고가 하나 이상 있는 청크 수다(경고만 또는 hard 실패와 경고가 함께 있는 경우 포함).
+    succeeded는 hard 실패 코드가 전혀 없는 청크 수이며, failed는 hard 실패 코드가
+    하나 이상 있는 청크 수다. 위치 실패만 있는 추출 청크는 failed에 유지하고 partial에도
+    포함한다. partial은 extraction이 존재하고 실패 코드가 오직 quote_location_failure인
+    청크 수다. quote_location_ambiguous는 경고이며 failures_by_code에는 기존처럼 모든
+    코드가 포함된다. with_warnings는 경고가 하나 이상 있는 청크 수다.
     """
     failures_by_code: Counter[str] = Counter()
     warnings_by_code: Counter[str] = Counter()
@@ -125,7 +127,7 @@ def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
         "json_parse_failure", "schema_validation_failure", "llm_call_failure",
         "empty_result", "quote_location_failure",
     }
-    succeeded = failed = with_warnings = over_4000 = 0
+    succeeded = failed = partial = with_warnings = over_4000 = 0
     for result in results:
         failures = result.get("failures", [])
         hard_failures = False
@@ -149,6 +151,9 @@ def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
         ambiguous_paths = {failure.get("path") for failure in failures
                            if failure.get("code") == "quote_location_ambiguous"}
         extraction = result.get("extraction")
+        codes = {failure.get("code") for failure in failures}
+        if extraction is not None and "quote_location_failure" in codes and codes == {"quote_location_failure"}:
+            partial += 1
         if extraction is None:
             continue
         for group in ("benefits", "conditions", "limits", "targets", "relations"):
@@ -166,6 +171,7 @@ def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
         "chunks": len(results),
         "succeeded": succeeded,
         "failed": failed,
+        "partial": partial,
         "with_warnings": with_warnings,
         "skipped": skipped,
         "failures_by_code": dict(sorted(failures_by_code.items())),

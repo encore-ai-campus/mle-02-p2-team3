@@ -51,12 +51,19 @@ file_pipeline/
 │   ├── headings.py          글자 크기로 제목 줄을 찾아 쪽 원문 안의 위치로 변환, 표 안 제목은 제외
 │   ├── build.py             쪽 → 청크 변환과 "이어 붙이면 원문과 같은가" 검증
 │   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
+├── graph/                   지식그래프 CSV 변환·적재 및 논리 설계
+│   ├── README.md            엔티티·근거 규칙·CSV 적재 계약
+│   ├── schema.sql           public pf_ 테이블 및 관계 검사 초안
+│   ├── export.py            추출 결과와 인덱스 → 검증된 pf_ CSV
+│   └── load.py              기본 드라이런, 명시적 실행 옵션의 CSV 적재기
 ├── extraction/              5~6단계: 추출 스키마, 청크 실행기와 시범 준비 도구
 │   ├── schema.py            온톨로지 v1 데이터 구조 (위치 숫자는 받지 않음)
 │   ├── evidence.py          인용문 → 쪽 원문 위치 변환
 │   ├── prompt.py            청크 1개용 프롬프트 (필드·허용값은 schema.py에서 읽음)
 │   ├── runner.py            프롬프트 → 응답 파싱 → 스키마 검증 → 인용문 위치 부여, 실패는 구조화해 기록
 │   ├── batch.py             청크 JSON 순회, 청크별 결과·문서 요약 저장 (예외 격리, 이어하기). 출력은 저장소 밖
+│   ├── diagnose.py          빈 추출 결과를 제목·길이·키워드 수로 분류 (원문은 출력하지 않음)
+│   ├── review_sheet.py      추출 성공 청크 N개를 사람이 원문과 대조하는 마크다운 대조표로 만듦 (원문 포함, 저장소 밖에만 저장)
 │   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
 │   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
 │   └── cli.py               select / estimate / 기본 드라이런 run 실행 진입점
@@ -126,6 +133,9 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 
 # 저장된 청크 결과만으로 요약 다시 만들기 (LLM 호출 없음)
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli summarize --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/results
+
+# 빈 추출 결과 분류 (LLM 호출 없음, 결과에는 청크 원문을 저장하지 않음)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli diagnose-empty --chunk-dir <하나 청크 폴더> --results-dir <저장소 밖>/results --output-dir <저장소 밖>/diagnosis
 
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/

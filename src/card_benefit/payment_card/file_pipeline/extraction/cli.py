@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import sys
 
-from .batch import run_batch
+from .batch import run_batch, summarize_saved_results
 from .llm_adapter import create_llm_call
 from .pilot import estimate_prompt_size, select_pilot_chunks
 
@@ -43,6 +43,10 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--api-key-env", default="OPENAI_API_KEY")
     run.add_argument("--max-chunks", type=int, default=5)
     run.add_argument("--execute", action="store_true", help="실제 LLM 호출을 허용")
+
+    summarize = commands.add_parser("summarize", help="저장된 결과만으로 문서 요약을 다시 만든다")
+    summarize.add_argument("--chunk-dir", type=Path, required=True)
+    summarize.add_argument("--output-dir", type=Path, required=True)
     return parser
 
 
@@ -58,6 +62,11 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "estimate":
             ids = json.loads(args.chunk_ids.read_text(encoding="utf-8"))
             print(json.dumps(estimate_prompt_size(ids, args.chunk_dir), ensure_ascii=False))
+        elif args.command == "summarize":
+            output = _outside_repo(args.output_dir)
+            files = sorted(args.chunk_dir.glob("*.chunks.json"))
+            result = summarize_saved_results(files, output)
+            print(json.dumps({"documents": len(result["documents"]), "output_dir": str(output)}, ensure_ascii=False))
         else:
             output = _outside_repo(args.output_dir)
             files = sorted(args.chunk_dir.glob("*.chunks.json"))

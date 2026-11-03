@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.batch import run_batch
+from payment_card.file_pipeline.extraction.batch import run_batch, summarize_saved_results
 
 
 DOC_SHA256 = "a" * 64
@@ -177,6 +177,33 @@ class ExtractionBatchTest(unittest.TestCase):
         self.assertEqual(summary["failures_by_code"], {"llm_call_failure": 1})
         self.assertEqual(summary["quote_locations"], {"success": 1, "failure": 0, "ambiguous": 0})
         self.assertEqual(summary["over_4000"], 1)
+
+    def test_ambiguous_quote_is_warning_and_hard_failures_remain_failures(self):
+        source = write_document(self.root, "doc1", [
+            {"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1, "text": "혜택 혜택"},
+            {"chunk_id": "doc1-c2", "page_no": 2, "start_pos": 1, "text": "호출 오류"},
+        ])
+        def llm_call(prompt):
+            if "호출 오류" in prompt:
+                raise RuntimeError("호출 실패")
+            return valid_response("혜택")
+        run_batch(source, llm_call, self.output, resume=False)
+        result_path = self.output / "doc1-c1.result.json"
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        result["failures"] = [{"code": "quote_location_ambiguous", "message": "중복", "path": "benefits[0].evidence[0]"}]
+        result_path.write_text(json.dumps(result), encoding="utf-8")
+        summary = summarize_saved_results([source], self.output)["documents"][0]["summary"]
+        self.assertEqual((summary["succeeded"], summary["failed"], summary["with_warnings"]), (1, 1, 1))
+        self.assertEqual(summary["warnings_by_code"], {"quote_location_ambiguous": 1})
+        self.assertEqual(summary["failures_by_code"], {"llm_call_failure": 1, "quote_location_ambiguous": 1})
+
+    def test_summarize_saved_results_never_calls_llm(self):
+        source = write_document(self.root, "doc1", [
+            {"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1, "text": "혜택"},
+        ])
+        run_batch(source, lambda _: valid_response("혜택"), self.output)
+        result = summarize_saved_results([source], self.output)
+        self.assertEqual(result["documents"][0]["summary"]["succeeded"], 1)
 
 
 if __name__ == "__main__":

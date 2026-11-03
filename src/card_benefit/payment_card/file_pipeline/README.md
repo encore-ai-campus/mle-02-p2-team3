@@ -36,7 +36,7 @@ flowchart LR
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
 | 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/온톨로지-v1.md` |
-| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 오프라인 준비 완료: 실행기·이어하기 배치·표본 선정·크기 추정·지연 OpenAI 어댑터·드라이런 CLI. 가짜 클라이언트 테스트 45개 통과. 하나카드 5개 청크 시범 호출 1회(4개 추출 성공, 스키마 실패 1, 모호 인용문 4). 확대 시범과 정확성 대조 전 |
+| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 오프라인 준비 완료: 실행기·이어하기 배치·저장 결과 재요약 CLI·표본 선정·크기 추정·지연 OpenAI 어댑터. 요약은 모호 인용문을 경고로 별도 집계. 하나카드 5개 청크 시범(4개 스키마 통과, 스키마 실패 1, 인용 위치 모호 4). 확대 시범과 정확성 대조 전 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
 ## 3. 폴더 구성
@@ -123,6 +123,9 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 
 # 실제 호출 예시: 먼저 OPENAI_API_KEY를 셸 환경에 설정하고, 모델명을 정한 뒤 명시적으로 실행
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli run --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json --output-dir <저장소 밖>/results --max-chunks 5 --model <모델명> --execute
+
+# 저장된 청크 결과만으로 요약 다시 만들기 (LLM 호출 없음)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli summarize --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/results
 
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/

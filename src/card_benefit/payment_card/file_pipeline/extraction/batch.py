@@ -112,18 +112,38 @@ def run_batch(
 
 
 def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
-    """저장된 청크 결과에서 문서 단위 집계를 만든다."""
+    """저장된 청크 결과에서 문서 단위 집계를 만든다.
+
+    succeeded/failed는 hard 실패 코드만 기준으로 한다. quote_location_ambiguous는
+    경고이며 failures_by_code에는 기존처럼 모든 코드가 포함된다. with_warnings는
+    경고가 하나 이상 있는 청크 수다(경고만 또는 hard 실패와 경고가 함께 있는 경우 포함).
+    """
     failures_by_code: Counter[str] = Counter()
+    warnings_by_code: Counter[str] = Counter()
     quote_locations = Counter()
-    succeeded = failed = over_4000 = 0
+    hard_failure_codes = {
+        "json_parse_failure", "schema_validation_failure", "llm_call_failure",
+        "empty_result", "quote_location_failure",
+    }
+    succeeded = failed = with_warnings = over_4000 = 0
     for result in results:
         failures = result.get("failures", [])
+        hard_failures = False
+        has_warning = False
         for failure in failures:
-            failures_by_code[failure["code"]] += 1
-        if failures:
+            code = failure["code"]
+            failures_by_code[code] += 1
+            if code == "quote_location_ambiguous":
+                warnings_by_code[code] += 1
+                has_warning = True
+            elif code in hard_failure_codes:
+                hard_failures = True
+        if hard_failures:
             failed += 1
         else:
             succeeded += 1
+        if has_warning:
+            with_warnings += 1
         if result.get("chunk_length", 0) > 4000:
             over_4000 += 1
         ambiguous_paths = {failure.get("path") for failure in failures
@@ -146,8 +166,40 @@ def _summarize(results: list[dict], skipped: int) -> dict[str, Any]:
         "chunks": len(results),
         "succeeded": succeeded,
         "failed": failed,
+        "with_warnings": with_warnings,
         "skipped": skipped,
         "failures_by_code": dict(sorted(failures_by_code.items())),
+        "warnings_by_code": dict(sorted(warnings_by_code.items())),
         "quote_locations": {key: quote_locations[key] for key in ("success", "failure", "ambiguous")},
         "over_4000": over_4000,
     }
+
+
+def summarize_saved_results(
+    chunk_files: Iterable[Path | str], output_dir: Path | str,
+) -> dict[str, Any]:
+    """저장된 청크 결과만 읽어 문서 요약을 다시 쓴다(LLM 호출 없음)."""
+    output = Path(output_dir).expanduser().resolve()
+    if output == _REPO_ROOT or _REPO_ROOT in output.parents:
+        raise ValueError("결과 폴더는 저장소 밖에 지정해야 합니다.")
+    documents = []
+    for path in chunk_files:
+        document = json.loads(Path(path).read_text(encoding="utf-8"))
+        doc_id = str(document["doc_id"])
+        results = []
+        for chunk in document["chunks"]:
+            chunk_id = chunk.get("chunk_id")
+            if not isinstance(chunk_id, str) or not chunk_id:
+                raise ValueError(f"청크 id가 없거나 올바르지 않습니다: {path}")
+            result_path = output / f"{quote(chunk_id, safe='._-')}.result.json"
+            if not result_path.is_file():
+                raise ValueError(f"저장된 청크 결과가 없습니다: {result_path.name}")
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            if not isinstance(result, dict) or not {"chunk_length", "extraction", "failures"}.issubset(result):
+                raise ValueError(f"결과 JSON에 필수 필드가 없습니다: {result_path.name}")
+            results.append(result)
+        summary = _summarize(results, skipped=0)
+        summary_path = output / f"{quote(doc_id, safe='._-')}.summary.json"
+        summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        documents.append({"doc_id": doc_id, "summary": summary, "summary_path": str(summary_path)})
+    return {"documents": documents, "output_dir": str(output)}

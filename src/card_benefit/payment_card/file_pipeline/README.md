@@ -36,7 +36,7 @@ flowchart LR
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
 | 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/온톨로지-v1.md` |
-| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 오프라인 준비 완료: 실행기·이어하기 배치·저장 결과 재요약 CLI·표본 선정·크기 추정·지연 OpenAI 어댑터. 요약은 모호 인용문을 경고로 별도 집계. 하나카드 5개 청크 시범(4개 스키마 통과, 스키마 실패 1, 인용 위치 모호 4). 확대 시범과 정확성 대조 전 |
+| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 실행기·이어하기 배치·표본 선정·크기 추정·지연 OpenAI 어댑터·드라이런/재집계 CLI 구현. 노트북 20개 시범 hard 실패 없는 결과 13개. 데스크탑 별도 15개 표본은 추출 성공 10, 빈 추출 2, 호출 실패 3. 7단계 검증 준비 부분 완료 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
 ## 3. 폴더 구성
@@ -59,7 +59,7 @@ file_pipeline/
 │   ├── batch.py             청크 JSON 순회, 청크별 결과·문서 요약 저장 (예외 격리, 이어하기). 출력은 저장소 밖
 │   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
 │   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
-│   └── cli.py               select / estimate / 기본 드라이런 run 실행 진입점
+│   └── cli.py               select / estimate / summarize / 기본 드라이런 run 실행 진입점
 ├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
 │   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
 │   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
@@ -118,6 +118,9 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli select --index-csv src/card_benefit/data/index/hana/documents.csv --chunk-dir <하나 청크 폴더> --output <저장소 밖>/pilot.json --count 5
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli estimate --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json
 
+# 기존 결과 재집계 (LLM 호출 없이 기존 result.json만 읽음)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli summarize --chunk-dir <하나 청크 폴더> --output-dir <저장소 밖>/results --chunk-ids <저장소 밖>/pilot.json
+
 # 기본 run은 드라이런. 실제 호출에는 --execute와 모델 이름이 필요하며 키는 OPENAI_API_KEY에서 읽음
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli run --chunk-dir <하나 청크 폴더> --chunk-ids <저장소 밖>/pilot.json --output-dir <저장소 밖>/results --max-chunks 5
 
@@ -132,7 +135,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q sr
 ```
 
 JSON에는 쪽 전체 원문이 들어간다. 로컬 임시 폴더에 저장하고 공유하거나 Git에 올리기 전에 내용을 확인한다.
-시범 표본의 표/규칙 키워드 탐지는 거친 선정 신호다. `run`은 `--execute`가 없으면 네트워크를 호출하지 않으며 기본 최대 새 호출 수는 5다.
+시범 표본의 표/규칙 키워드 탐지는 거친 선정 신호다. `run`은 `--execute`가 없으면 네트워크를 호출하지 않으며 기본 최대 새 호출 수는 5다. `summarize`는 기존 결과 폴더의 청크별 JSON만 다시 집계하고, 아직 결과가 없는 청크는 `missing_results`로 표시한다. 청크 폴더에 없는 요청 ID는 오류로 중단한다. 프롬프트 버전을 비교할 때는 결과 폴더를 구분해 각각 집계한다.
 
 ## 6. 읽는 순서 (처음 보는 사람)
 

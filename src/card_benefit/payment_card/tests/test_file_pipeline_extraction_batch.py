@@ -205,6 +205,18 @@ class ExtractionBatchTest(unittest.TestCase):
         result = summarize_saved_results([source], self.output)
         self.assertEqual(result["documents"][0]["summary"]["succeeded"], 1)
 
+    def test_ambiguous_quote_is_successful_extraction_but_requires_review(self):
+        source = write_document(self.root, "doc1", [
+            {"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1,
+             "text": "식비 할인, 식비 할인"},
+        ])
+
+        result = run_batch(source, lambda _: valid_response("식비 할인"), self.output, resume=False)
+
+        summary = result["documents"][0]["summary"]
+        self.assertEqual((summary["succeeded"], summary["failed"], summary["review_required"]), (1, 0, 1))
+        self.assertEqual(summary["quote_locations"], {"success": 0, "failure": 0, "ambiguous": 1})
+
 
 if __name__ == "__main__":
     unittest.main()

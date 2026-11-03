@@ -104,6 +104,63 @@ class ExtractionCliTest(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[4]
         self.assertEqual(main(["run", "--chunk-dir", ".", "--output-dir", str(repo_root / "unsafe")]), 2)
 
+    def test_summarize_reaggregates_saved_results_without_llm_calls(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            chunk_dir = root / "chunks"
+            result_dir = root / "results"
+            chunk_dir.mkdir()
+            result_dir.mkdir()
+            document = {
+                "doc_id": "doc1",
+                "doc_sha256": "a" * 64,
+                "chunks": [{"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1, "text": "혜택"}],
+            }
+            (chunk_dir / "doc1.chunks.json").write_text(json.dumps(document), encoding="utf-8")
+            result = {
+                "doc_sha256": "a" * 64,
+                "page_no": 1,
+                "chunk_id": "doc1-c1",
+                "chunk_length": 2,
+                "extraction": {"benefits": [{"evidence": [{"location": None}]}]},
+                "failures": [{"code": "quote_location_ambiguous", "path": "benefits[0].evidence[0]"}],
+                "notes": [],
+            }
+            (result_dir / "doc1-c1.result.json").write_text(json.dumps(result), encoding="utf-8")
+
+            self.assertEqual(main(["summarize", "--chunk-dir", str(chunk_dir), "--output-dir", str(result_dir)]), 0)
+
+            summary = json.loads((result_dir / "doc1.summary.json").read_text(encoding="utf-8"))
+            self.assertEqual((summary["succeeded"], summary["failed"], summary["review_required"]), (1, 0, 1))
+            self.assertEqual(summary["quote_locations"], {"success": 0, "failure": 0, "ambiguous": 1})
+            self.assertEqual(summary["missing_results"], 0)
+
+    def test_summarize_rejects_chunk_ids_missing_from_chunk_files(self):
+        import json
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            chunk_dir = root / "chunks"
+            result_dir = root / "results"
+            chunk_dir.mkdir()
+            result_dir.mkdir()
+            document = {
+                "doc_id": "doc1",
+                "doc_sha256": "a" * 64,
+                "chunks": [{"chunk_id": "doc1-c1", "page_no": 1, "start_pos": 1, "text": "혜택"}],
+            }
+            (chunk_dir / "doc1.chunks.json").write_text(json.dumps(document), encoding="utf-8")
+            wanted_ids = root / "wanted.json"
+            wanted_ids.write_text(json.dumps(["missing-c1"]), encoding="utf-8")
+
+            self.assertEqual(main([
+                "summarize", "--chunk-dir", str(chunk_dir), "--output-dir", str(result_dir),
+                "--chunk-ids", str(wanted_ids),
+            ]), 2)
+            self.assertFalse((result_dir / "doc1.summary.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

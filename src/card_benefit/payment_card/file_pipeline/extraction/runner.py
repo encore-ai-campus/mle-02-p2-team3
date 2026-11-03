@@ -64,6 +64,12 @@ def run_chunk(chunk: dict, doc_sha256: str, llm_call: LLMCall) -> dict[str, Any]
                     if not any(f["code"] == "quote_location_failure" and f.get("path") == path
                                for f in result["failures"]):
                         result["failures"].append(_failure("quote_location_failure", "인용문을 원문에서 찾지 못했습니다.", path, quote["text"]))
+                elif located.occurrences > 1:
+                    quote["location"] = None
+                    result["failures"].append(_failure(
+                        "quote_location_ambiguous", "인용문이 청크에서 여러 번 나타납니다.",
+                        path, quote["text"], occurrences=located.occurrences,
+                    ))
                 else:
                     quote["location"] = {
                         "doc_sha256": doc_sha256,
@@ -71,8 +77,6 @@ def run_chunk(chunk: dict, doc_sha256: str, llm_call: LLMCall) -> dict[str, Any]
                         "start_pos": located.start_pos,
                         "end_pos": located.end_pos,
                     }
-                    if located.occurrences > 1:
-                        result["failures"].append(_failure("quote_location_ambiguous", "인용문이 청크에서 여러 번 나타납니다.", path, quote["text"], occurrences=located.occurrences))
     return result
 
 

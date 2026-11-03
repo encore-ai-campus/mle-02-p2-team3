@@ -3,8 +3,34 @@
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Callable
 from typing import Any
+
+
+def _safe_error_details(error: Exception, api_key: str) -> str:
+    """Return exception type/metadata only; never render exception messages."""
+    chain: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        chain.append(type(current).__name__)
+        current = current.__cause__ or current.__context__
+
+    details = [" <- ".join(chain)]
+    status_code = getattr(error, "status_code", None)
+    if isinstance(status_code, (int, str)):
+        details.append(f"status_code={status_code}")
+    for field in ("code", "type"):
+        value = getattr(error, field, None)
+        if isinstance(value, (str, int, float)):
+            details.append(f"{field}={value}")
+
+    result = ", ".join(details)
+    if api_key:
+        result = result.replace(api_key, "[REDACTED]")
+    return re.sub(r"sk-[^\s,;]+", "[REDACTED]", result)
 
 
 def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
@@ -16,7 +42,8 @@ def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
     """
     if not model:
         raise ValueError("모델 이름을 지정해야 합니다.")
-    api_key = os.environ.get(api_key_env)
+    # CRLF .env를 source하면 키 끝에 \r이 붙어 HTTP 헤더 오류가 나므로 앞뒤 공백과 개행을 제거한다.
+    api_key = (os.environ.get(api_key_env) or "").strip()
     if not api_key:
         raise RuntimeError(f"환경변수 {api_key_env}에 API 키를 설정해야 합니다.")
     if client_factory is None:
@@ -35,7 +62,8 @@ def create_llm_call(model: str, api_key_env: str = "OPENAI_API_KEY", *,
             response = client.invoke(prompt)
         except Exception as error:
             # SDK 예외에는 요청 정보가 포함될 수 있어 원문 메시지를 전달하지 않는다.
-            raise RuntimeError(f"LLM 호출 실패 ({type(error).__name__}).") from None
+            details = _safe_error_details(error, api_key)
+            raise RuntimeError(f"LLM 호출 실패 ({details}).") from None
         content = getattr(response, "content", response)
         if not isinstance(content, str):
             raise RuntimeError("LLM 응답 본문이 문자열이 아닙니다.")

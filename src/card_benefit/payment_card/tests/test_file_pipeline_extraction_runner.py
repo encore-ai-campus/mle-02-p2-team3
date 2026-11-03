@@ -4,9 +4,9 @@ import json
 import unittest
 
 from payment_card.file_pipeline.extraction.runner import run_chunk
-from payment_card.file_pipeline.extraction.prompt import build_prompt
+from payment_card.file_pipeline.extraction.prompt import EXAMPLE_OUTPUT, build_prompt
 from payment_card.file_pipeline.extraction.schema import (
-    ALLOWED_RELATIONS, Benefit, Condition, Limit, Relation, Target,
+    ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target,
 )
 from typing import Literal, get_args, get_origin
 
@@ -25,6 +25,14 @@ def response(quote: str = "식비 5% 할인") -> str:
 
 
 class ExtractionRunnerTest(unittest.TestCase):
+    def test_prompt_example_matches_extraction_schema(self):
+        self.assertIsInstance(Extraction.model_validate(EXAMPLE_OUTPUT), Extraction)
+
+    def test_prompt_explicitly_requires_evidence_objects_and_includes_example(self):
+        prompt = build_prompt(CHUNK)
+        self.assertIn("evidence는 반드시 객체의 목록: 문자열이나 문자열 목록은 안 됨", prompt)
+        self.assertIn(json.dumps(EXAMPLE_OUTPUT, ensure_ascii=False, indent=2), prompt)
+
     def test_prompt_lists_schema_fields_and_literal_values(self):
         prompt = build_prompt(CHUNK)
         for model in (Benefit, Condition, Limit, Target, Relation):

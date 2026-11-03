@@ -2,9 +2,65 @@
 
 from __future__ import annotations
 
+import json
 from typing import Literal, get_args, get_origin
 
 from .schema import ALLOWED_RELATIONS, Benefit, Condition, Limit, Relation, Target
+
+
+EXAMPLE_OUTPUT = {
+    "schema_ver": "ONTOLOGY_V1",
+    "benefits": [{
+        "id": "benefit-1",
+        "name": "식사 할인",
+        "method": "DISCOUNT",
+        "rate": "5%",
+        "amount": "3만원 이상",
+        "evidence": [{"text": "식사 결제는 5% 할인되며"}],
+    }],
+    "conditions": [{
+        "id": "condition-1",
+        "text": "3만원 이상 결제",
+        "kind": "SPEND_REQ",
+        "min_amount": 30000,
+        "evidence": [{"text": "3만원 이상 결제 시 적용됩니다"}],
+    }],
+    "limits": [{
+        "id": "limit-1",
+        "text": "월 할인 한도는 5천원",
+        "period": "MONTH",
+        "amount": 5000,
+        "unlimited": False,
+        "shared": False,
+        "evidence": [{"text": "월 할인 한도는 5천원"}],
+    }],
+    "targets": [{
+        "id": "target-1",
+        "text": "식사 결제",
+        "kind": "OTHER",
+        "evidence": [{"text": "식사 결제"}],
+    }],
+    "relations": [
+        {
+            "source": "benefit-1",
+            "target": "condition-1",
+            "type": "HAS_CONDITION",
+            "evidence": [{"text": "3만원 이상 결제 시 적용됩니다"}],
+        },
+        {
+            "source": "benefit-1",
+            "target": "limit-1",
+            "type": "HAS_LIMIT",
+            "evidence": [{"text": "월 할인 한도는 5천원"}],
+        },
+        {
+            "source": "benefit-1",
+            "target": "target-1",
+            "type": "APPLIES_TO",
+            "evidence": [{"text": "식사 결제는 5% 할인되며"}],
+        },
+    ],
+}
 
 
 def _literal_values(annotation: object) -> list[str]:
@@ -38,13 +94,18 @@ def build_prompt(chunk: dict) -> str:
     ))
     relation_pairs = ", ".join(f"{name}: {source}→{target}"
                                 for name, (source, target) in ALLOWED_RELATIONS.items())
+    example_json = json.dumps(EXAMPLE_OUTPUT, ensure_ascii=False, indent=2)
     return f"""카드 혜택 청크에서 혜택, 조건, 한도, 대상, 관계를 추출하세요.
 원문에 없는 내용을 추측하지 마세요. 모든 엔티티와 관계의 evidence에는 원문 그대로의 인용문을 하나 이상 넣으세요.
+evidence는 반드시 객체의 목록: 문자열이나 문자열 목록은 안 됨
 id는 영문자, 숫자, 밑줄(_), 하이픈(-)만 사용하고 1~64자로 만드세요. 전체 엔티티에서 id는 서로 달라야 합니다.
 관계는 아래 허용 쌍만 사용하고, 자기 자신을 가리키거나 존재하지 않는 id를 참조하지 마세요.
 {relation_pairs}
 출력은 설명이나 마크다운 없이 JSON 객체만 반환하세요. 위치 숫자는 출력하지 마세요.
 최상위 키는 schema_ver(값 ONTOLOGY_V1), benefits, conditions, limits, targets, relations입니다.
+
+출력 JSON 예시 (가상의 짧은 원문을 바탕으로 한 예시):
+{example_json}
 
 필드와 허용값 (필수/선택 필드는 스키마 기준):
 {schema_fields}

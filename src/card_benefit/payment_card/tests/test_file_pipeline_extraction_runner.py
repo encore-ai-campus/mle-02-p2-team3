@@ -8,7 +8,7 @@ from payment_card.file_pipeline.extraction.prompt import (
     ENUM_DESCRIPTIONS, EXAMPLE_OUTPUT, build_prompt, enum_values_from_schema,
 )
 from payment_card.file_pipeline.extraction.schema import (
-    ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target,
+    ALLOWED_RELATIONS, Benefit, Condition, ConditionKind, Extraction, Limit, Relation, Target, TargetKind,
 )
 from typing import Literal, get_args, get_origin
 
@@ -48,6 +48,21 @@ class ExtractionRunnerTest(unittest.TestCase):
         self.assertIn("같은 인용문이 청크 안에 두 번 이상 나오지 않도록", prompt)
         self.assertIn("금액·업종명·혜택명", prompt)
         self.assertIn("한 문장 안에서", prompt)
+
+    def test_prompt_clarifies_channel_is_target_only_kind(self):
+        prompt = build_prompt(CHUNK)
+        rule = (
+            "CHANNEL 은 Target(대상)의 kind 전용 값이다. Condition(조건)의 kind 에는 쓰지 말고, "
+            "온라인/오프라인·앱 결제 같은 채널성 조건은 PAYMENT 또는 USAGE 로, 가맹점 조건은 "
+            "MERCHANT 로, 해당하지 않으면 OTHER 로 분류하라."
+        )
+        self.assertIn(rule, prompt)
+
+        condition_kinds = set(get_args(ConditionKind))
+        target_kinds = set(get_args(TargetKind))
+        self.assertNotIn("CHANNEL", condition_kinds)
+        self.assertIn("CHANNEL", target_kinds)
+        self.assertTrue({"PAYMENT", "USAGE", "MERCHANT", "OTHER"} <= condition_kinds)
 
     def test_prompt_lists_schema_fields_and_literal_values(self):
         prompt = build_prompt(CHUNK)

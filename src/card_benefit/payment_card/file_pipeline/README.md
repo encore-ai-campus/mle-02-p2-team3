@@ -72,6 +72,11 @@ file_pipeline/
 │   ├── locate_diagnose.py   인용 위치 실패를 원문 없이 유형 분류
 │   ├── relocate.py          공백·문장부호 차이만 유일 일치 시 위치 재탐색
 │   ├── variance.py          반복 결과의 항목 수·집합·성공 편차 비교
+│   ├── consensus.py         반복 결과에서 k회 이상 합의한 항목·관계만 새 결과로 저장
+│   ├── eval_runs.py         라벨별 반복·프롬프트 결과의 숫자 지표와 변동 범위 비교
+│   ├── table_density_report.py 청크 텍스트의 거친 표 밀도와 추출 지표 비교
+│   ├── enum_violation_report.py  스키마 실패의 enum 경로·값 집계 (원문형 값은 숨김)
+│   ├── prompt_version_compare.py 프롬프트별 항목·근거 개수와 청크 방향 비교
 │   ├── pilot_run.py         선택·추정·실행·요약·검증·그래프 내보내기 흐름 묶음
 │   ├── diagnose.py          빈 추출 결과를 제목·길이·키워드 수로 분류 (원문은 출력하지 않음)
 │   ├── review_sheet.py      추출 성공 청크 N개를 사람이 원문과 대조하는 마크다운 대조표로 만듦 (원문 포함, 저장소 밖에만 저장)
@@ -97,6 +102,70 @@ file_pipeline/
 ```
 
 `sql/card_benefit_schema.sql` 은 전달받은 카드 문서·AI 추출·혜택 스키마 명세를 PostgreSQL DDL로 옮긴 참고 파일이다. 현재 `file_pipeline` 실행 코드는 JSON 파일을 사용하며 이 SQL을 자동 적용하지 않는다.
+
+### 3-1. 이 파일이 하는 일 (처음 보는 사람용)
+
+파일 이름이 영어 약어라 역할이 한눈에 안 보이므로, `extraction/`과 `graph/` 안의 파일을 하는 일 기준으로 모았다. **LLM을 실제로 부르는 것은 맨 위 "추출 실행" 묶음뿐**이고, 나머지는 이미 저장된 결과 파일을 읽어 분석한다. 사람이 읽는 결과(대조표 등)에는 PDF 원문이 들어가므로 저장소 밖에 둔다.
+
+**① 추출 실행 (핵심 흐름)**
+
+| 파일 | 하는 일 | 입력 → 출력 |
+|---|---|---|
+| `schema.py` | 뽑을 항목의 모양(혜택, 조건, 한도, 대상, 관계)과 허용값을 정한다 | 규칙 정의 |
+| `prompt.py` | LLM에게 보낼 지시문을 만든다 | 청크 → 지시문 |
+| `llm_adapter.py` | OpenAI 호출을 감싼다. 키는 환경변수 이름으로만 받고, 실패 원인은 비밀 없이 남긴다 | 지시문 → 응답 |
+| `evidence.py` | LLM이 낸 인용문을 청크 원문에서 찾아 쪽 번호와 글자 위치로 바꾼다 | 인용문 → 위치 |
+| `runner.py` | 청크 1개를 처리한다: 호출 → 응답 해석 → 스키마 검사 → 인용문 위치 부여, 실패는 종류별로 기록 | 청크 → 결과 1개 |
+| `parallel.py` | 여러 청크를 동시에 호출하고 일시적 오류는 재시도, 고칠 수 없는 오류가 반복되면 중단 | 청크 목록 → 결과들 |
+| `batch.py` | 문서 단위로 결과 파일을 저장하고 요약을 만들며 이어하기를 지원 | 청크 파일 → 결과 폴더 |
+| `cli.py` | 위를 명령어로 실행하는 입구(`select`, `estimate`, `run`, `summarize`, `verify` 등). `--execute`가 있어야 실제 호출 | 명령 |
+
+**② 시범 실행 보조**
+
+| 파일 | 하는 일 |
+|---|---|
+| `pilot.py` | 시범으로 돌릴 청크를 골고루 고르고, 프롬프트 크기와 토큰을 어림한다(호출 없음) |
+| `pilot_run.py` | 선정부터 실행, 요약, 검증, 그래프 변환까지 한 번에. `--execute`가 없으면 계획만 보여 준다 |
+
+**③ 결과 점검·진단 (모두 읽기 전용, 원문 미출력)**
+
+| 파일 | 답하는 질문 |
+|---|---|
+| `verify.py` | 숫자가 인용문에 있나? 연결 안 된 항목은? 공유 한도 표시가 맞나? (거친 신호) |
+| `diagnose.py` | 결과가 빈 청크는 왜 비었나? (제목, 길이, 혜택 키워드 수) |
+| `locate_diagnose.py` | 인용문 위치를 못 찾은 이유는? (공백만 다름, 일부만 일치, 환각 의심 등) |
+| `ambiguity_report.py` | 같은 문구가 청크에 여러 번 나와 위치가 모호한 인용문은 어떤 것이 많나? |
+| `enum_violation_report.py` | 허용값 밖의 분류값(`kind` 등)을 어떤 값이 얼마나 냈나? |
+| `variance.py` | 같은 청크를 여러 번 돌렸을 때 결과가 얼마나 흔들리나? |
+| `prompt_version_compare.py` | 프롬프트를 바꾸자 항목 수가 늘었나 줄었나? (개수만, 정확성 아님) |
+| `eval_runs.py` | 같은 프롬프트 반복 또는 프롬프트별 성공·실패·빈 결과와 항목·근거 수를 요약하고, 반복 범위와 비교한다 |
+| `table_density_report.py` | 청크 텍스트만으로 표 밀도를 거칠게 나눠 결과 지표를 비교한다 (PDF를 열지 않음) |
+| `consensus.py` | 여러 실행에서 k회 이상 일치한 항목과 연결 관계만 새 결과 폴더에 저장한다. 정밀도가 높아지고 재현율은 낮아질 수 있다 |
+
+**④ 복구·내보내기**
+
+| 파일 | 하는 일 |
+|---|---|
+| `relocate.py` | 공백·문장부호만 달라 위치를 못 찾은 인용문의 위치를 안전한 경우에만 복구한다(원본 폴더는 수정하지 않음) |
+| `result_a.py` | 근거 위치 기준으로 비교하기 쉬운 형식(JSONL)으로 내보낸다. 초안이며 8단계에서 상대 형식과 맞춘다 |
+
+**⑤ 사람 점검**
+
+| 파일 | 하는 일 |
+|---|---|
+| `review_sheet.py` | 사람이 원문과 대조할 표(마크다운)를 만든다 |
+| `review_tally.py` | 사람이 체크한 표를 집계해 일치·오류·누락 비율을 낸다 |
+
+**⑥ 지식그래프 (`graph/`)**
+
+| 파일 | 하는 일 |
+|---|---|
+| `normalize_values.py` | "5만원", "3천원", "리터당 50원", "3만원 이상", "연 4회" 같은 원문 표기를 수치로 바꾼다. 해석 못 하면 추측하지 않고 원문과 `unparsed` 사유를 남긴다(아직 export에는 연결하지 않음) |
+| `export.py` | 추출 결과를 노드·간선·근거 CSV로 바꾼다. 위반 행은 사유별로 세어 제외한다 |
+| `load.py` | CSV를 검증하고 `pf_` 테이블에만 넣는다. 기본은 드라이런, `--execute`가 있어야 DB에 쓴다 |
+| `schema.sql`, `queries.sql` | 테이블 정의(실행 전 합의 필요)와 읽기 전용 질의 예시 |
+
+**이름 읽는 법**: `report`는 숫자 보고서, `diagnose`는 원인 분류, `relocate`는 위치 복구, `verify`는 자동 점검, `variance`는 흔들림 측정, `review`는 사람 점검이다.
 
 ## 4. 모듈 호출 관계
 
@@ -208,6 +277,20 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 ```
 
 `variance`의 항목 집합 키는 유형과 정규화된 이름·텍스트·종류를 사용하며 인용문을 비교하지 않는다. 항목 수 변동이 큰 청크는 변동계수 0.5 이상으로 집계한다. 결과 JSON은 청크 id와 수치 지표만 저장한다.
+
+
+```bash
+# 반복 결과 숫자 요약: 그룹 표준편차와 반복 범위 비교 (정확성 판정 아님)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.eval_runs --group fixed_prompt=~/pilot_work/out5a,~/pilot_work/out5b --group new=~/pilot_work/out6 --output /tmp/eval-runs.json
+
+# 여러 번 합의한 새 결과 폴더 (원래 결과는 수정하지 않음)
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.consensus --run ~/pilot_work/out5a --run ~/pilot_work/out5b --run ~/pilot_work/out6 --k 2 --output-dir /tmp/consensus --summary-json /tmp/consensus-summary.json
+
+# 청크 텍스트의 짧은 줄·숫자/단위·구분자·줄 길이 신호로 표 밀도 추정
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.table_density_report --chunk-dir ~/pilot_work/chunks/hana --run out3=~/pilot_work/out3 --run out4=~/pilot_work/out4 --run out5a=~/pilot_work/out5a --run out5b=~/pilot_work/out5b --run out6=~/pilot_work/out6 --output /tmp/table-density.json
+```
+
+`consensus`는 인용문을 쓰지 않는 `variance.py`의 정규화 키를 재사용한다. 항목은 k회 이상, 관계는 양 끝 항목과 함께 관계 키가 k회 이상 일치해야 유지한다. 유지율의 입력 항목 수는 실행별 평균이다. `table_density_report`의 세 등급은 텍스트 특징 기반의 거친 상대 구간이다. 세 도구의 보고서에는 결과·청크 원문 없이 수치와 청크 id만 기록한다.
 
 ## 6. 읽는 순서 (처음 보는 사람)
 

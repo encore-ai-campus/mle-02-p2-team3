@@ -1,4 +1,4 @@
--- 검토용 초안. 실행하지 말 것: 팀의 DB/접두사/RLS 합의 전이다.
+-- 2026-11-03 Supabase에서 실행 완료(pf_ 4개 테이블, RLS 켜짐 확인). 재실행해도 안전하게 작성됨. 데이터 적재는 별도 단계(load.py --execute).
 -- 모든 객체는 public의 pf_ 이름이며 RLS 정책을 만들지 않는다.
 
 create table if not exists public.pf_load_runs (

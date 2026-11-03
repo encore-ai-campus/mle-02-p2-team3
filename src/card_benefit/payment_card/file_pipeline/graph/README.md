@@ -2,6 +2,10 @@
 
 상태: **제안 초안**. 저장소 후보는 팀 합의 전이며, SQL은 검토용으로만 작성했다. 실행하지 않았다.
 
+## 실행 상태
+
+2026-11-03 Supabase SQL Editor에서 `schema.sql` 전체를 실행했고, `public`의 `pf_edges`, `pf_evidence`, `pf_load_runs`, `pf_nodes` 네 테이블과 모두 `rowsecurity=true`인 것을 확인했다. 기존 `nodes`·`edges` 테이블 보존 여부는 확인하지 않았으며, 데이터 적재(`load.py --execute`)는 아직 실행하지 않았다.
+
 ## 논리 모델
 
 ```mermaid

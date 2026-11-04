@@ -38,7 +38,11 @@ def _load(directory: str | Path) -> dict[str, dict[str, Any]]:
 
 
 def _entity_key(section: str, item: dict[str, Any]) -> tuple:
-    return section, *(_norm(item.get(field)) for field in FIELDS)
+    fields = list(FIELDS)
+    fields += {"limits": ("amount", "period", "unlimited"),
+               "conditions": ("kind", "min_amount", "amount"),
+               "targets": ("kind", "name")}.get(section, ())
+    return section, *(_norm(item.get(field)) for field in dict.fromkeys(fields))
 
 
 def _run_items(row: dict[str, Any] | None) -> dict[str, dict[tuple, dict[str, Any]]]:
@@ -48,6 +52,8 @@ def _run_items(row: dict[str, Any] | None) -> dict[str, dict[tuple, dict[str, An
     for section in ENTITY_GROUPS:
         for item in extraction.get(section, []) or []:
             key = _entity_key(section, item)
+            if not any(key[1:]):
+                continue
             out[section].setdefault(key, item)
             if item.get("id") is not None:
                 ids[str(item["id"])] = key
@@ -139,8 +145,17 @@ def build_report(base_dirs: list[str | Path], compare_dirs: list[str | Path], ch
     density_by_id = dict(zip(density_ids, density_labels))
     threshold = (3 * len(base_runs) + 3) // 4
     disappeared, unstable, added, stable_items, spelling, fuzzy_added, genuine = [], [], [], [], [], [], []
+    unprocessed_chunks, unprocessed_items = set(), set()
     per_chunk = {}
     for cid in ids:
+        unavailable = [run.get(cid) is None or run.get(cid, {}).get("extraction") is None for run in compare_runs]
+        if all(unavailable):
+            for run in base_runs:
+                for section, values in _run_items(run.get(cid)).items():
+                    unprocessed_chunks.add(cid)
+                    unprocessed_items.update((cid, section, key) for key in values)
+            per_chunk[cid] = {"disappeared_candidates": 0, "base_once_only": 0, "compare_only_added": 0}
+            continue
         base = [_run_items(run.get(cid)) for run in base_runs]
         comp = [_run_items(run.get(cid)) for run in compare_runs]
         bcounts, ccounts = Counter(), Counter()
@@ -181,7 +196,7 @@ def build_report(base_dirs: list[str | Path], compare_dirs: list[str | Path], ch
                 if sec == "relations":
                     found = relation_matches(key, [other for (s, other) in ccounts if s == "relations"], bitems, citems)
                 else:
-                    found = any(other != key and _category(sec, candidate[3], {}) == _category(sec, citems[(sec, other)], {}) and _similar(key, other, fuzzy_threshold) for other in comp_entity if other[0] == sec)
+                    found = any(other != key and _category(sec, key, candidate[3]) == _category(sec, other, citems[(sec, other)]) and _similar(key, other, fuzzy_threshold) for other in comp_entity if other[0] == sec and (sec, other) in citems)
                 if found:
                     spelling.append(candidate)
                 else:
@@ -189,7 +204,7 @@ def build_report(base_dirs: list[str | Path], compare_dirs: list[str | Path], ch
             genuine.extend(fuzzy_gone)
             for candidate in new:
                 _, sec, key, item = candidate
-                found = any(other[0] == sec and _similar(key, other, fuzzy_threshold) and _category(sec, item, {}) == _category(sec, bitems[(sec, other)], {}) for other in base_entity)
+                found = any(other[0] == sec and _similar(key, other, fuzzy_threshold) and _category(sec, key, item) == _category(sec, other, bitems[(sec, other)]) for other in base_entity if (sec, other) in bitems)
                 if sec == "relations":
                     found = relation_matches(key, [other for (s, other) in bcounts if s == "relations"], citems, bitems)
                 if found:
@@ -198,6 +213,11 @@ def build_report(base_dirs: list[str | Path], compare_dirs: list[str | Path], ch
         per_chunk[cid] = {"disappeared_candidates": len(gone), "base_once_only": len(once), "compare_only_added": len(new)}
     stable_report = _count_candidates(stable_items, density_by_id)
     lost_report = _count_candidates(disappeared, density_by_id)
+    once_report = _count_candidates(unstable, density_by_id)
+    note = None
+    if len(base_runs) == 1:
+        once_report = _count_candidates([], density_by_id)
+        note = "기준 실행 1개라 불안정 항목 정의 불가"
     return {"base_run_count": len(base_runs), "compare_run_count": len(compare_runs),
             "base_threshold_at_least": threshold, "threshold_rule": "ceil(3 * base_run_count / 4)",
             "counts_not_correctness": True,
@@ -208,7 +228,10 @@ def build_report(base_dirs: list[str | Path], compare_dirs: list[str | Path], ch
             "spelling_difference_candidates": _count_candidates(spelling, density_by_id),
             "genuine_disappeared_candidates": _count_candidates(genuine if fuzzy else disappeared, density_by_id),
             "fuzzy_matched_compare_only_added": _count_candidates(fuzzy_added, density_by_id),
-            "base_once_only_unstable": _count_candidates(unstable, density_by_id),
+            "base_once_only_unstable": once_report,
+            "base_once_only_unstable_note": note,
+            "unprocessed_or_failed_chunks": len(unprocessed_chunks),
+            "unprocessed_or_failed_item_count": len(unprocessed_items),
             "compare_only_added": _count_candidates(added, density_by_id),
             "per_chunk": per_chunk}
 

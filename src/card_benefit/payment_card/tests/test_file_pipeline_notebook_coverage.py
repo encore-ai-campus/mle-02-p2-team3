@@ -2,10 +2,18 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 
 FILE_PIPELINE = Path(__file__).parents[1] / "file_pipeline"
 NOTEBOOKS = FILE_PIPELINE / "notebooks"
 MODULE_LIST = NOTEBOOKS / "모듈-점검-목록.md"
+
+
+def _assert_empty_outputs(paths):
+    for path in paths:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        assert all(not cell.get("outputs", []) for cell in document["cells"] if cell.get("cell_type") == "code"), path
 
 
 def _modules():
@@ -42,6 +50,30 @@ def test_listed_notebooks_exist_and_have_empty_code_outputs():
 
 
 def test_all_notebooks_have_empty_outputs():
-    for path in NOTEBOOKS.glob("*.ipynb"):
-        document = json.loads(path.read_text(encoding="utf-8"))
-        assert all(not cell.get("outputs", []) for cell in document["cells"] if cell.get("cell_type") == "code"), path.name
+    notebooks = [path for path in NOTEBOOKS.rglob("*.ipynb") if ".ipynb_checkpoints" not in path.parts]
+    assert notebooks, "no notebooks found"
+    _assert_empty_outputs(notebooks)
+
+
+def test_nested_notebook_with_output_is_rejected(tmp_path):
+    nested_notebooks = tmp_path / "notebooks"
+    nested_notebooks.mkdir()
+    nested = nested_notebooks / "학습용"
+    nested.mkdir()
+    notebook = nested / "practice.ipynb"
+    notebook.write_text(
+        json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "code", "outputs": [{"output_type": "stream", "text": "sample"}]}
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    discovered = list(nested_notebooks.rglob("*.ipynb"))
+
+    assert discovered == [notebook]
+    with pytest.raises(AssertionError):
+        _assert_empty_outputs(discovered)

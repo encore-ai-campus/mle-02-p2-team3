@@ -110,3 +110,53 @@ def test_item_loss_report_fuzzy_denominator_spelling_and_relation_matching(tmp_p
     serialized = json.dumps(fuzzy, ensure_ascii=False)
     for secret in ("Annual discount", "Annual discount benefit", "merchant reward", "SENSITIVE_QUOTE"):
         assert secret not in serialized
+
+
+def test_fuzzy_category_arguments_prevent_cross_category_match(tmp_path):
+    chunks = tmp_path / "chunks"; chunks.mkdir()
+    (chunks / "doc.chunks.json").write_text(json.dumps({"chunks": [{"chunk_id": "c", "text": "x"}]}), encoding="utf-8")
+    bases = []
+    for i in range(4):
+        path = tmp_path / f"base{i}"
+        _write_run(path, [_row("c", [_benefit("스타벅스 할인", "RATE_DISCOUNT")])]); bases.append(path)
+    compare = tmp_path / "compare"
+    _write_run(compare, [_row("c", [_benefit("스타벅스 할인x", "POINT")])])
+    report = build_report(bases, [compare], chunks, fuzzy=True)
+    assert report["spelling_difference_candidates"]["total"] == 0
+    assert report["genuine_disappeared_candidates"]["total"] == 1
+
+
+def test_missing_and_failed_compare_chunks_are_separate_from_disappeared(tmp_path):
+    chunks = tmp_path / "chunks"; chunks.mkdir()
+    (chunks / "doc.chunks.json").write_text(json.dumps({"chunks": [{"chunk_id": "missing", "text": "x"}, {"chunk_id": "failed", "text": "x"}]}), encoding="utf-8")
+    bases = []
+    for i in range(4):
+        path = tmp_path / f"base{i}"
+        _write_run(path, [_row("missing", [_benefit()]), _row("failed", [_benefit()])]); bases.append(path)
+    compare = tmp_path / "compare"
+    _write_run(compare, [{"chunk_id": "failed", "extraction": None}])
+    report = build_report(bases, [compare], chunks)
+    assert report["disappeared_candidates"]["total"] == 0
+    assert report["unprocessed_or_failed_chunks"] == 2
+    assert report["unprocessed_or_failed_item_count"] == 2
+
+
+def test_single_base_run_has_no_once_only_unstable_items(tmp_path):
+    chunks = tmp_path / "chunks"; chunks.mkdir()
+    (chunks / "doc.chunks.json").write_text(json.dumps({"chunks": [{"chunk_id": "c", "text": "x"}]}), encoding="utf-8")
+    base = tmp_path / "base"; _write_run(base, [_row("c", [_benefit()])])
+    compare = tmp_path / "compare"; _write_run(compare, [_row("c")])
+    report = build_report([base], [compare], chunks)
+    assert report["base_once_only_unstable"]["total"] == 0
+    assert report["base_once_only_unstable_note"] == "기준 실행 1개라 불안정 항목 정의 불가"
+
+
+def test_nameless_identifying_fields_prevent_item_merging(tmp_path):
+    chunks = tmp_path / "chunks"; chunks.mkdir()
+    (chunks / "doc.chunks.json").write_text(json.dumps({"chunks": [{"chunk_id": "c", "text": "x"}]}), encoding="utf-8")
+    items = [{"amount": 10000, "period": "MONTH", "unlimited": False}, {"amount": 20000, "period": "MONTH", "unlimited": False}]
+    bases = []
+    for i in range(4):
+        path = tmp_path / f"base{i}"; _write_run(path, [_row("c", limits=items)]); bases.append(path)
+    compare = tmp_path / "compare"; _write_run(compare, [_row("c")])
+    assert build_report(bases, [compare], chunks)["disappeared_candidates"]["total"] == 2

@@ -69,3 +69,31 @@ def test_none_and_non_string_inputs_are_not_guessed():
     for fn in (parse_amount, parse_rate, parse_condition, parse_range, parse_per_unit):
         assert fn(None) is None
         assert fn(5)["unparsed"] == "empty_or_non_string"
+
+
+def test_expands_unambiguous_reverse_per_unit_and_embedded_condition_thresholds():
+    assert parse_per_unit("1,000원당 2마일") == {
+        "raw": "1,000원당 2마일", "amount": 2, "unit": "마일", "per": "1000원"
+    }
+    assert parse_condition("지난달 실적 30만원 이상")["min"] == 300000
+    assert parse_condition("전월 이용금액 30만원 이상")["min"] == 300000
+
+
+def test_range_parser_accepts_numeric_bounds_with_amount_units():
+    assert parse_range("30만원 이상 ~ 50만원 미만") == {
+        "raw": "30만원 이상 ~ 50만원 미만", "min_amount": 300000, "max_amount": 500000, "unit": "원"
+    }
+
+
+def test_amount_parser_accepts_clear_monetary_value_labels():
+    assert parse_amount("3만원 할인") == {"raw": "3만원 할인", "amount": 30000, "unit": "원"}
+    assert parse_amount("1만 5천원 교환권") == {
+        "raw": "1만 5천원 교환권", "amount": 15000, "unit": "원"
+    }
+    assert "unparsed" in parse_amount("최대 3만원 할인")
+
+
+def test_ambiguous_ranges_and_upper_bound_rate_remain_unparsed():
+    assert "unparsed" in parse_rate("최대 5%")
+    assert "unparsed" in parse_condition("월 2~3회")
+    assert "unparsed" in parse_range("숙박 1.0~2.0 / 예약 2.0~3.0")

@@ -12,10 +12,10 @@ import sys
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 CSV_COLUMNS = {
-    "pf_load_runs": ["run_id", "input_folder_name", "model_name", "started_at", "node_count", "edge_count"],
-    "pf_nodes": ["id", "node_type", "props", "chunk_id", "run_id"],
-    "pf_edges": ["id", "source_id", "target_id", "edge_type", "run_id"],
-    "pf_evidence": ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"],
+    "fp_load_runs": ["run_id", "input_folder_name", "model_name", "started_at", "node_count", "edge_count"],
+    "fp_nodes": ["id", "node_type", "props", "chunk_id", "run_id"],
+    "fp_edges": ["id", "source_id", "target_id", "edge_type", "run_id"],
+    "fp_evidence": ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"],
 }
 ALLOWED_ENDPOINTS = {
     "HAS_CONDITION": ("Benefit", "Condition"), "HAS_LIMIT": ("Benefit", "Limit"),
@@ -167,10 +167,10 @@ def export_files(result_dir, chunk_dir, index_dir, model_name, output_dir, run_i
     evidences = [e for e in evidences if _valid_evidence_row(e, node_ids, edge_ids, invalid)]
     quote_counts = Counter(e["quote_status"] for e in evidences)
     run_row = {"run_id": run_id, "input_folder_name": result_dir.name, "model_name": model_name, "started_at": started_at, "node_count": len(nodes), "edge_count": len(valid_edges)}
-    _write_csv(output_dir / "pf_load_runs.csv", CSV_COLUMNS["pf_load_runs"], [run_row])
-    _write_csv(output_dir / "pf_nodes.csv", CSV_COLUMNS["pf_nodes"], nodes)
-    _write_csv(output_dir / "pf_edges.csv", CSV_COLUMNS["pf_edges"], valid_edges)
-    _write_csv(output_dir / "pf_evidence.csv", CSV_COLUMNS["pf_evidence"], evidences)
+    _write_csv(output_dir / "fp_load_runs.csv", CSV_COLUMNS["fp_load_runs"], [run_row])
+    _write_csv(output_dir / "fp_nodes.csv", CSV_COLUMNS["fp_nodes"], nodes)
+    _write_csv(output_dir / "fp_edges.csv", CSV_COLUMNS["fp_edges"], valid_edges)
+    _write_csv(output_dir / "fp_evidence.csv", CSV_COLUMNS["fp_evidence"], evidences)
     return {"chunks": len(list(result_dir.glob("*.result.json"))), "nodes": len(nodes), "edges": len(valid_edges), "evidence": len(evidences), "node_types": dict(sorted(Counter(n["node_type"] for n in nodes).items())), "skipped_chunks": skipped, "quote_status": dict(sorted(quote_counts.items())), "invalid_rows": dict(sorted(invalid.items()))}
 
 

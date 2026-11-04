@@ -55,9 +55,9 @@ file_pipeline/
 │   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
 ├── graph/                   지식그래프 CSV 변환·적재 및 논리 설계
 │   ├── README.md            엔티티·근거 규칙·CSV 적재 계약
-│   ├── queries.sql          pf_ 테이블만 대상으로 하는 읽기 전용 질의 예시
-│   ├── schema.sql           public pf_ 테이블 및 관계 검사 초안
-│   ├── export.py            추출 결과와 인덱스 → 검증된 pf_ CSV
+│   ├── queries.sql          fp_ 테이블만 대상으로 하는 읽기 전용 질의 예시
+│   ├── schema.sql           public fp_ 테이블 및 관계 검사 초안
+│   ├── export.py            추출 결과와 인덱스 → 검증된 fp_ CSV
 │   └── load.py              기본 드라이런, 명시적 실행 옵션의 CSV 적재기
 ├── extraction/              5~6단계: 추출 스키마, 청크 실행기와 시범 준비 도구
 │   ├── schema.py            온톨로지 v1 데이터 구조 (위치 숫자는 받지 않음)
@@ -170,9 +170,18 @@ file_pipeline/
 |---|---|
 | `normalize_values.py` | "5만원", "3천원", "리터당 50원", "3만원 이상", "연 4회" 같은 원문 표기를 수치로 바꾼다. 해석 못 하면 추측하지 않고 원문과 `unparsed` 사유를 남긴다(아직 export에는 연결하지 않음) |
 | `export.py` | 추출 결과를 노드·간선·근거 CSV로 바꾼다. 위반 행은 사유별로 세어 제외한다 |
-| `load.py` | CSV를 검증하고 `pf_` 테이블에만 넣는다. 기본은 드라이런, `--execute`가 있어야 DB에 쓴다 |
-| `cypher_export.py` | 그래프 CSV를 Pf 라벨과 PF_ 관계를 사용하는 Neo4j Browser Cypher 스크립트로 변환한다 |
+| `load.py` | CSV를 검증하고 `fp_` 테이블에만 넣는다. 기본은 드라이런, `--execute`가 있어야 DB에 쓴다 |
+| `cypher_export.py` | 그래프 CSV를 Fp 라벨과 FP_ 관계를 사용하는 Neo4j Browser Cypher 스크립트로 변환한다 |
 | `schema.sql`, `queries.sql` | 테이블 정의(실행 전 합의 필요)와 읽기 전용 질의 예시 |
+
+**⑦ 챗봇 평가 도구 (`chat/`)**
+
+| 파일 | 하는 일 |
+|---|---|
+| `chat/fp_chat_patch.py` | 명시적으로 적용할 때만 팀 GraphRAG를 `fp_chat` 뷰에 연결하고 질문 키워드 우선 검색을 수행한다 |
+| `chat/run_fp_chat.py` | Streamlit 챗봇 진입점. `streamlit run`으로 실행하고 화면에 fp_chat 모드를 표시한다 |
+| `chat/eval_questions.py` | 그래프 CSV에서 PDF 원문 없이 결정적인 메타데이터 질문 세트를 만든다. 출력은 `/tmp`만 허용한다 |
+| `chat/run_eval.py` | 기본 드라이런, `--execute`일 때 소량 질문 평가와 검색·답변·출처·시간 지표를 계산한다 |
 
 **이름 읽는 법**: `report`는 숫자 보고서, `diagnose`는 원인 분류, `relocate`는 위치 복구, `verify`는 자동 점검, `variance`는 흔들림 측정, `review`는 사람 점검이다.
 

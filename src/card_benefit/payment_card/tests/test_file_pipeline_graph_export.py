@@ -42,9 +42,9 @@ def test_export_remaps_relations_evidence_and_deduplicates_cards(tmp_path):
     result_dir, chunk_dir, index_dir = _fixture(tmp_path)
     out = tmp_path / "csv"
     summary = export.export_files(result_dir, chunk_dir, index_dir, "test", out, run_id="run1")
-    nodes = list(csv.DictReader((out / "pf_nodes.csv").open(encoding="utf-8")))
-    edges = list(csv.DictReader((out / "pf_edges.csv").open(encoding="utf-8")))
-    evidence = list(csv.DictReader((out / "pf_evidence.csv").open(encoding="utf-8")))
+    nodes = list(csv.DictReader((out / "fp_nodes.csv").open(encoding="utf-8")))
+    edges = list(csv.DictReader((out / "fp_edges.csv").open(encoding="utf-8")))
+    evidence = list(csv.DictReader((out / "fp_evidence.csv").open(encoding="utf-8")))
     assert {n["id"] for n in nodes} >= {"c1:b1", "c1:cnd1", "card:hana:123"}
     assert any(e["source_id"] == "c1:b1" and e["target_id"] == "c1:cnd1" for e in edges)
     assert sum(e["node_type"] == "Card" for e in nodes) == 1
@@ -89,8 +89,8 @@ def test_export_uses_supported_product_keys_in_priority_order(
 
     out = tmp_path / "csv"
     summary = export.export_files(result_dir, chunk_dir, index_dir, "test", out, run_id="run1")
-    nodes = list(csv.DictReader((out / "pf_nodes.csv").open(encoding="utf-8")))
-    edges = list(csv.DictReader((out / "pf_edges.csv").open(encoding="utf-8")))
+    nodes = list(csv.DictReader((out / "fp_nodes.csv").open(encoding="utf-8")))
+    edges = list(csv.DictReader((out / "fp_edges.csv").open(encoding="utf-8")))
 
     card_ids = {n["id"] for n in nodes if n["node_type"] == "Card"}
     assert card_ids == ({expected_card} if expected_card else set())

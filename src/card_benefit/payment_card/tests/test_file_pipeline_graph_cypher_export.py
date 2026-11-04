@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from payment_card.file_pipeline.graph.cypher_export import export_cypher
+from payment_card.file_pipeline.graph.cypher_export import export_cypher, list_cards
 
 
 def _write_csv(path, columns, rows):
@@ -16,13 +16,13 @@ def _write_csv(path, columns, rows):
 
 def _inputs(folder, count=1):
     folder.mkdir(parents=True)
-    _write_csv(folder / "pf_load_runs.csv", ["run_id", "input_folder_name", "model_name", "started_at", "node_count", "edge_count"], [])
-    _write_csv(folder / "pf_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"], [
+    _write_csv(folder / "fp_load_runs.csv", ["run_id", "input_folder_name", "model_name", "started_at", "node_count", "edge_count"], [])
+    _write_csv(folder / "fp_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"], [
         {"id": f"n{i}", "node_type": "Benefit", "props": json.dumps({"name": "O'Reilly\\path\nnext", "active": True, "tags": ["a"], "nested": {"k": 1}}, ensure_ascii=False), "chunk_id": "c", "run_id": "r"}
         for i in range(count)
     ])
-    _write_csv(folder / "pf_edges.csv", ["id", "source_id", "target_id", "edge_type", "run_id"], [])
-    _write_csv(folder / "pf_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [])
+    _write_csv(folder / "fp_edges.csv", ["id", "source_id", "target_id", "edge_type", "run_id"], [])
+    _write_csv(folder / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [])
 
 
 def test_exports_escaped_flat_properties_and_nested_json(tmp_path):
@@ -35,8 +35,8 @@ def test_exports_escaped_flat_properties_and_nested_json(tmp_path):
     assert "active: true" in text
     assert 'props_json: \'{"tags":["a"],"nested":{"k":1}}\'' in text
     assert "quote" not in text.lower()
-    assert ":PfBenefit" in text
-    assert "CREATE CONSTRAINT pf_benefit_id_unique" in text
+    assert ":FpBenefit" in text
+    assert "CREATE CONSTRAINT fp_benefit_id_unique" in text
     assert ":Benefit" not in text
 
 
@@ -47,7 +47,7 @@ def test_batches_are_split_at_500_rows(tmp_path):
     export_cypher(source, output)
     text = output.read_text(encoding="utf-8")
     assert text.count("UNWIND [") == 2
-    assert text.count("MERGE (n:PfBenefit") == 2
+    assert text.count("MERGE (n:FpBenefit") == 2
 
 
 def test_rejects_output_inside_repository(tmp_path):
@@ -61,7 +61,7 @@ def test_rejects_output_inside_repository(tmp_path):
 def test_rejects_label_injection(tmp_path):
     source = tmp_path / "csv"
     _inputs(source)
-    nodes = source / "pf_nodes.csv"
+    nodes = source / "fp_nodes.csv"
     rows = list(csv.DictReader(nodes.open(encoding="utf-8", newline="")))
     rows[0]["node_type"] = "Benefit) DETACH DELETE n //"
     _write_csv(nodes, list(rows[0]), rows)
@@ -69,11 +69,96 @@ def test_rejects_label_injection(tmp_path):
         export_cypher(source, tmp_path / "load.cypher")
 
 
+def _graph_csv(folder, cards, benefits, edges):
+    folder.mkdir()
+    _write_csv(folder / "fp_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"], [
+        {"id": cid, "node_type": "Card", "props": json.dumps({"product_name": name}), "chunk_id": "", "run_id": "r"} for cid, name in cards
+    ] + [
+        {"id": bid, "node_type": "Benefit", "props": json.dumps({"name": bid}), "chunk_id": "", "run_id": "r"} for bid in benefits
+    ] + [
+        {"id": nid, "node_type": typ, "props": "{}", "chunk_id": "", "run_id": "r"} for nid, typ in (("cond", "Condition"), ("lim", "Limit"), ("tar", "Target"))
+    ])
+    _write_csv(folder / "fp_edges.csv", ["id", "source_id", "target_id", "edge_type", "run_id"], [dict(id=eid, source_id=s, target_id=t, edge_type=typ, run_id="r") for eid, s, t, typ in edges])
+    _write_csv(folder / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [])
+
+
+def test_list_cards_sorts_benefit_count_then_id(tmp_path):
+    source = tmp_path / "csv"
+    _graph_csv(source, [("c2", "Second"), ("c1", "First")], ["b1", "b2"], [
+        ("e1", "c2", "b1", "OFFERS"), ("e2", "c1", "b2", "OFFERS"),
+    ])
+    result = list_cards(source, 10)
+    assert [(r["card_id"], r["product_name"], r["benefits"]) for r in result] == [("c1", "First", 1), ("c2", "Second", 1)]
+
+
+def test_sample_filter_cuts_benefits_and_shared_card_edges(tmp_path):
+    source = tmp_path / "csv"
+    _graph_csv(source, [("c1", "One"), ("c2", "Two")], ["b1", "b2", "shared"], [
+        ("o1", "c1", "b1", "OFFERS"), ("o2", "c1", "b2", "OFFERS"),
+        ("o3", "c1", "shared", "OFFERS"), ("o4", "c2", "shared", "OFFERS"),
+        ("d1", "b1", "cond", "HAS_CONDITION"), ("d2", "b1", "lim", "HAS_LIMIT"),
+        ("d3", "b1", "tar", "APPLIES_TO"),
+    ])
+    output = tmp_path / "sample.cypher"
+    counts = export_cypher(source, output, ["c1"], max_benefits=2)
+    script = output.read_text(encoding="utf-8")
+    assert counts["cut_benefits"] == 1
+    assert counts["nodes"] == 6
+    assert "'c2'" not in script
+    assert "'o4'" not in script
+    assert "잘린 혜택 1" in script
+
+
+def test_full_export_remains_unmarked_and_keeps_all_input_rows(tmp_path):
+    source = tmp_path / "csv"
+    _graph_csv(source, [("c", "Card")], ["b"], [("o", "c", "b", "OFFERS")])
+    output = tmp_path / "all.cypher"
+    counts = export_cypher(source, output)
+    assert counts == {"nodes": 5, "edges": 1, "evidence": 0}
+    assert "샘플 스크립트" not in output.read_text(encoding="utf-8")
+
+
 def test_readme_and_queries_have_only_scoped_delete_and_prefixed_patterns():
     root = Path(__file__).resolve().parents[1] / "file_pipeline" / "graph" / "cypher"
     readme = (root / "README.md").read_text(encoding="utf-8")
     queries = (root / "queries.cypher").read_text(encoding="utf-8")
     assert "MATCH (n) DETACH DELETE n" not in readme + queries
-    assert "MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Pf') DETACH DELETE n" in readme
+    assert "MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Fp') DETACH DELETE n" in readme
     assert "MATCH (n)" not in queries
     assert ":Card" not in queries and ":Benefit" not in queries
+
+
+def test_evidence_ids_captions_and_labeled_matches(tmp_path):
+    source = tmp_path / "csv"
+    _graph_csv(source, [("c", "Card")], ["b"], [("o", "c", "b", "OFFERS")])
+    evidence_path = source / "fp_evidence.csv"
+    _write_csv(evidence_path, ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [
+        {"node_id": "c", "edge_id": "", "doc_sha256": "a" * 64, "page_no": "2", "start_pos": "3", "end_pos": "8", "quote_status": "exact"},
+        {"node_id": "c", "edge_id": "", "doc_sha256": "a" * 64, "page_no": "2", "start_pos": "3", "end_pos": "8", "quote_status": "exact"},
+    ])
+    output = tmp_path / "all.cypher"
+    counts = export_cypher(source, output)
+    text = output.read_text(encoding="utf-8")
+    assert counts == {"nodes": 5, "edges": 1, "evidence": 1}
+    assert text.count("evidence:") >= 1
+    assert "name: 'Card'" in text and "name: 'b'" in text and "exact p.2" in text
+    assert "MATCH (source:FpCard {id: row.source_id}), (target:FpBenefit {id: row.target_id})" in text
+    assert "MATCH (n {" not in text and "OPTIONAL MATCH (n {" not in text
+    assert "MERGE (e:FpEvidence {id: row.id})" in text
+
+
+def test_content_based_evidence_ids_are_stable_and_disjoint(tmp_path):
+    import re
+
+    outputs = []
+    for i, digest in enumerate(("a" * 64, "b" * 64)):
+        source = tmp_path / f"csv{i}"
+        _graph_csv(source, [(f"c{i}", f"Card{i}")], [f"b{i}"], [])
+        _write_csv(source / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [
+            {"node_id": f"c{i}", "edge_id": "", "doc_sha256": digest, "page_no": "1", "start_pos": "2", "end_pos": "4", "quote_status": "exact"}
+        ])
+        output = tmp_path / f"out{i}.cypher"
+        export_cypher(source, output)
+        outputs.append(set(re.findall(r"evidence:[0-9a-f]{20}", output.read_text(encoding="utf-8"))))
+    assert len(outputs[0]) == len(outputs[1]) == 1
+    assert outputs[0].isdisjoint(outputs[1])

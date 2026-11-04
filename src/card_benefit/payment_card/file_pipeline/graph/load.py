@@ -1,4 +1,4 @@
-"""Validate graph CSVs and optionally insert them into the fixed pf_ allowlist."""
+"""Validate graph CSVs and optionally insert them into the fixed fp_ allowlist."""
 from __future__ import annotations
 
 import argparse
@@ -12,13 +12,13 @@ import sys
 
 from .export import ALLOWED_ENDPOINTS, CSV_COLUMNS
 
-WRITE_TABLES = ("pf_load_runs", "pf_nodes", "pf_edges", "pf_evidence")
+WRITE_TABLES = ("fp_load_runs", "fp_nodes", "fp_edges", "fp_evidence")
 _INSERT_COLUMNS = {
-    "pf_load_runs": CSV_COLUMNS["pf_load_runs"],
-    "pf_nodes": CSV_COLUMNS["pf_nodes"],
-    "pf_edges": CSV_COLUMNS["pf_edges"],
+    "fp_load_runs": CSV_COLUMNS["fp_load_runs"],
+    "fp_nodes": CSV_COLUMNS["fp_nodes"],
+    "fp_edges": CSV_COLUMNS["fp_edges"],
     # DB identity column is generated, so the CSV's seven columns are all inserted.
-    "pf_evidence": CSV_COLUMNS["pf_evidence"],
+    "fp_evidence": CSV_COLUMNS["fp_evidence"],
 }
 _BATCH_SIZE = 1000
 
@@ -59,22 +59,22 @@ def validate_csvs(csv_dir):
     csv_dir = Path(csv_dir).expanduser().resolve()
     unexpected = sorted(p.name for p in csv_dir.glob("*.csv") if p.stem not in WRITE_TABLES)
     if unexpected:
-        raise ValueError("CSV directory contains files outside the pf_ write allowlist")
+        raise ValueError("CSV directory contains files outside the fp_ write allowlist")
     rows = {table: _read(csv_dir / f"{table}.csv", table) for table in WRITE_TABLES}
     errors = Counter()
-    runs = rows["pf_load_runs"]
+    runs = rows["fp_load_runs"]
     if len(runs) != 1 or not runs[0].get("run_id"):
         errors["invalid_run_count"] += 1
     run_id = runs[0].get("run_id", "") if runs else ""
-    if any(r.get("run_id") != run_id for table in ("pf_nodes", "pf_edges") for r in rows[table]):
+    if any(r.get("run_id") != run_id for table in ("fp_nodes", "fp_edges") for r in rows[table]):
         errors["run_id_mismatch"] += 1
     if runs:
         try:
-            if int(runs[0]["node_count"]) != len(rows["pf_nodes"]) or int(runs[0]["edge_count"]) != len(rows["pf_edges"]):
+            if int(runs[0]["node_count"]) != len(rows["fp_nodes"]) or int(runs[0]["edge_count"]) != len(rows["fp_edges"]):
                 errors["run_count_mismatch"] += 1
         except (KeyError, TypeError, ValueError):
             errors["invalid_run_counts"] += 1
-    nodes = rows["pf_nodes"]
+    nodes = rows["fp_nodes"]
     by_id = {}
     for row in nodes:
         if not row["id"] or row["id"] in by_id:
@@ -87,7 +87,7 @@ def validate_csvs(csv_dir):
                 raise ValueError
         except (TypeError, ValueError):
             errors["invalid_props"] += 1
-    edges = rows["pf_edges"]
+    edges = rows["fp_edges"]
     edge_ids = set()
     edge_keys = set()
     for row in edges:
@@ -105,7 +105,7 @@ def validate_csvs(csv_dir):
         if edge_key in edge_keys:
             errors["duplicate_edge_relation"] += 1
         edge_keys.add(edge_key)
-    for row in rows["pf_evidence"]:
+    for row in rows["fp_evidence"]:
         if bool(row["node_id"]) == bool(row["edge_id"]):
             errors["invalid_evidence_target"] += 1
         elif row["node_id"] and row["node_id"] not in by_id or row["edge_id"] and row["edge_id"] not in edge_ids:
@@ -138,7 +138,7 @@ def _connect(database_url):
 
 
 def _table_for_sql(sql):
-    match = re.match(r"INSERT INTO public\.(pf_[a-z_]+) ", sql)
+    match = re.match(r"INSERT INTO public\.(fp_[a-z_]+) ", sql)
     return match.group(1) if match else None
 
 
@@ -162,15 +162,15 @@ def load_csvs(csv_dir, *, execute=False):
     counts = {table: len(rows[table]) for table in WRITE_TABLES}
     if not execute:
         return {"mode": "dry_run", "counts": counts}
-    database_url = os.environ.get("PF_DATABASE_URL")
+    database_url = os.environ.get("FP_DATABASE_URL")
     if not database_url:
-        raise RuntimeError("PF_DATABASE_URL is required for --execute")
+        raise RuntimeError("FP_DATABASE_URL is required for --execute")
     conn = None
     try:
         conn = _connect(database_url)
         with conn.cursor() as cursor:
-            run_id = rows["pf_load_runs"][0]["run_id"]
-            cursor.execute("SELECT 1 FROM public.pf_load_runs WHERE run_id = %s", (run_id,))
+            run_id = rows["fp_load_runs"][0]["run_id"]
+            cursor.execute("SELECT 1 FROM public.fp_load_runs WHERE run_id = %s", (run_id,))
             if cursor.fetchone():
                 raise DuplicateRunError("run_id already exists")
             for table in WRITE_TABLES:
@@ -180,11 +180,11 @@ def load_csvs(csv_dir, *, execute=False):
                     values = []
                     for column in _INSERT_COLUMNS[table]:
                         value = row[column]
-                        if table == "pf_nodes" and column == "props":
+                        if table == "fp_nodes" and column == "props":
                             value = _jsonb(json.loads(value))
-                        elif table == "pf_evidence" and column in ("page_no", "start_pos", "end_pos"):
+                        elif table == "fp_evidence" and column in ("page_no", "start_pos", "end_pos"):
                             value = int(value) if value else None
-                        elif table == "pf_load_runs" and column in ("node_count", "edge_count"):
+                        elif table == "fp_load_runs" and column in ("node_count", "edge_count"):
                             value = int(value)
                         values.append(value)
                     batch.append(tuple(values))
@@ -212,36 +212,36 @@ def load_csvs(csv_dir, *, execute=False):
 
 
 _DELETE_COUNT_SQL = {
-    "pf_evidence": "SELECT COUNT(*) FROM public.pf_evidence WHERE node_id IN (SELECT id FROM public.pf_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.pf_edges WHERE run_id = %s)",
-    "pf_edges": "SELECT COUNT(*) FROM public.pf_edges WHERE run_id = %s",
-    "pf_nodes": "SELECT COUNT(*) FROM public.pf_nodes WHERE run_id = %s",
-    "pf_load_runs": "SELECT COUNT(*) FROM public.pf_load_runs WHERE run_id = %s",
+    "fp_evidence": "SELECT COUNT(*) FROM public.fp_evidence WHERE node_id IN (SELECT id FROM public.fp_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.fp_edges WHERE run_id = %s)",
+    "fp_edges": "SELECT COUNT(*) FROM public.fp_edges WHERE run_id = %s",
+    "fp_nodes": "SELECT COUNT(*) FROM public.fp_nodes WHERE run_id = %s",
+    "fp_load_runs": "SELECT COUNT(*) FROM public.fp_load_runs WHERE run_id = %s",
 }
 _DELETE_SQL = {
-    "pf_evidence": "DELETE FROM public.pf_evidence WHERE node_id IN (SELECT id FROM public.pf_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.pf_edges WHERE run_id = %s)",
-    "pf_edges": "DELETE FROM public.pf_edges WHERE run_id = %s",
-    "pf_nodes": "DELETE FROM public.pf_nodes WHERE run_id = %s",
-    "pf_load_runs": "DELETE FROM public.pf_load_runs WHERE run_id = %s",
+    "fp_evidence": "DELETE FROM public.fp_evidence WHERE node_id IN (SELECT id FROM public.fp_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.fp_edges WHERE run_id = %s)",
+    "fp_edges": "DELETE FROM public.fp_edges WHERE run_id = %s",
+    "fp_nodes": "DELETE FROM public.fp_nodes WHERE run_id = %s",
+    "fp_load_runs": "DELETE FROM public.fp_load_runs WHERE run_id = %s",
 }
 
 
 def delete_run(run_id, *, execute=False):
     """Report or delete rows belonging to one graph load run."""
-    database_url = os.environ.get("PF_DATABASE_URL")
+    database_url = os.environ.get("FP_DATABASE_URL")
     if not database_url:
-        raise RuntimeError("PF_DATABASE_URL is required for --delete-run")
+        raise RuntimeError("FP_DATABASE_URL is required for --delete-run")
     conn = None
     try:
         conn = _connect(database_url)
         counts = {}
         with conn.cursor() as cursor:
             for table, sql in _DELETE_COUNT_SQL.items():
-                params = (run_id, run_id) if table == "pf_evidence" else (run_id,)
+                params = (run_id, run_id) if table == "fp_evidence" else (run_id,)
                 cursor.execute(sql, params)
                 counts[table] = int(cursor.fetchone()[0])
             if execute:
                 for table, sql in _DELETE_SQL.items():
-                    params = (run_id, run_id) if table == "pf_evidence" else (run_id,)
+                    params = (run_id, run_id) if table == "fp_evidence" else (run_id,)
                     cursor.execute(sql, params)
         if execute:
             conn.commit()

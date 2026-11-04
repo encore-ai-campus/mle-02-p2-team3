@@ -17,12 +17,19 @@ def _assert_empty_outputs(paths):
 
 
 def _modules():
-    return {
+    modules = {
         path.stem
         for directory in (FILE_PIPELINE / "extraction", FILE_PIPELINE / "graph")
         for path in directory.glob("*.py")
         if path.name != "__init__.py"
     }
+    # chat/ 모듈은 이름 충돌을 피하려고 'chat/<모듈>' 로 목록에 적는다.
+    modules |= {
+        f"chat/{path.stem}"
+        for path in (FILE_PIPELINE / "chat").glob("*.py")
+        if path.name != "__init__.py"
+    }
+    return modules
 
 
 def _entries():

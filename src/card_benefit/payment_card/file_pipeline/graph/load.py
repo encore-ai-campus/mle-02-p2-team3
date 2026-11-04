@@ -20,6 +20,7 @@ _INSERT_COLUMNS = {
     # DB identity column is generated, so the CSV's seven columns are all inserted.
     "pf_evidence": CSV_COLUMNS["pf_evidence"],
 }
+_BATCH_SIZE = 1000
 
 
 class DuplicateRunError(ValueError):
@@ -174,6 +175,7 @@ def load_csvs(csv_dir, *, execute=False):
                 raise DuplicateRunError("run_id already exists")
             for table in WRITE_TABLES:
                 sql = _insert_sql(table)
+                batch = []
                 for row in rows[table]:
                     values = []
                     for column in _INSERT_COLUMNS[table]:
@@ -185,7 +187,13 @@ def load_csvs(csv_dir, *, execute=False):
                         elif table == "pf_load_runs" and column in ("node_count", "edge_count"):
                             value = int(value)
                         values.append(value)
-                    cursor.execute(sql, tuple(values))
+                    batch.append(tuple(values))
+                    if len(batch) == _BATCH_SIZE:
+                        # executemany keeps psycopg3's pipeline batching while avoiding COPY-specific adaptation risks.
+                        cursor.executemany(sql, batch)
+                        batch = []
+                if batch:
+                    cursor.executemany(sql, batch)
         conn.commit()
         return {"mode": "execute", "counts": counts}
     except Exception as exc:
@@ -203,13 +211,72 @@ def load_csvs(csv_dir, *, execute=False):
             conn.close()
 
 
+_DELETE_COUNT_SQL = {
+    "pf_evidence": "SELECT COUNT(*) FROM public.pf_evidence WHERE node_id IN (SELECT id FROM public.pf_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.pf_edges WHERE run_id = %s)",
+    "pf_edges": "SELECT COUNT(*) FROM public.pf_edges WHERE run_id = %s",
+    "pf_nodes": "SELECT COUNT(*) FROM public.pf_nodes WHERE run_id = %s",
+    "pf_load_runs": "SELECT COUNT(*) FROM public.pf_load_runs WHERE run_id = %s",
+}
+_DELETE_SQL = {
+    "pf_evidence": "DELETE FROM public.pf_evidence WHERE node_id IN (SELECT id FROM public.pf_nodes WHERE run_id = %s) OR edge_id IN (SELECT id FROM public.pf_edges WHERE run_id = %s)",
+    "pf_edges": "DELETE FROM public.pf_edges WHERE run_id = %s",
+    "pf_nodes": "DELETE FROM public.pf_nodes WHERE run_id = %s",
+    "pf_load_runs": "DELETE FROM public.pf_load_runs WHERE run_id = %s",
+}
+
+
+def delete_run(run_id, *, execute=False):
+    """Report or delete rows belonging to one graph load run."""
+    database_url = os.environ.get("PF_DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("PF_DATABASE_URL is required for --delete-run")
+    conn = None
+    try:
+        conn = _connect(database_url)
+        counts = {}
+        with conn.cursor() as cursor:
+            for table, sql in _DELETE_COUNT_SQL.items():
+                params = (run_id, run_id) if table == "pf_evidence" else (run_id,)
+                cursor.execute(sql, params)
+                counts[table] = int(cursor.fetchone()[0])
+            if execute:
+                for table, sql in _DELETE_SQL.items():
+                    params = (run_id, run_id) if table == "pf_evidence" else (run_id,)
+                    cursor.execute(sql, params)
+        if execute:
+            conn.commit()
+            mode = "execute"
+        else:
+            mode = "dry_run"
+        return {"mode": mode, "counts": counts}
+    except Exception as exc:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        if isinstance(exc, (DuplicateRunError, DriverUnavailableError)):
+            raise
+        state = getattr(exc, "sqlstate", None)
+        raise DatabaseOperationError(type(exc).__name__, str(state) if state else None) from None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--csv-dir", required=True)
+    parser.add_argument("--csv-dir")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--delete-run")
     args = parser.parse_args(argv)
     try:
-        result = load_csvs(args.csv_dir, execute=args.execute)
+        if args.delete_run is not None:
+            result = delete_run(args.delete_run, execute=args.execute)
+        else:
+            if not args.csv_dir:
+                parser.error("--csv-dir is required unless --delete-run is used")
+            result = load_csvs(args.csv_dir, execute=args.execute)
     except Exception as exc:
         # Never serialize exception text or connection details.
         state = getattr(exc, "sqlstate", None)

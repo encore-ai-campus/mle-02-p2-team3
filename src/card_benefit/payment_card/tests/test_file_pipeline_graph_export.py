@@ -66,3 +66,33 @@ def test_export_excludes_bad_rows_and_repository_output(tmp_path):
     summary = export.export_files(result_dir, chunk_dir, index_dir, "test", tmp_path / "out", run_id="run1")
     assert summary["invalid_rows"].get("invalid_endpoint_types", 0) == 1
     assert summary["invalid_rows"].get("invalid_evidence_position", 0) == 1
+
+
+@pytest.mark.parametrize(
+    ("product_ids", "expected_card", "expected_offers", "expected_missing"),
+    [
+        ('{"CD_ID":"hana-1"}', "card:hana:hana-1", 1, 0),
+        ('{"product_code":"woori-1"}', "card:woori:woori-1", 1, 0),
+        ('{}', None, 0, 1),
+        ('{"CD_ID":"hana-first","product_code":"woori-second"}', "card:hana:hana-first", 1, 0),
+    ],
+)
+def test_export_uses_supported_product_keys_in_priority_order(
+    tmp_path, product_ids, expected_card, expected_offers, expected_missing
+):
+    result_dir, chunk_dir, index_dir = _fixture(tmp_path)
+    _write_csv(
+        index_dir / "product_docs.csv",
+        ["issuer", "product_name", "product_ids", "card_type", "doc_id"],
+        [{"issuer": expected_card.split(":")[1] if expected_card else "hana", "product_name": "카드", "product_ids": product_ids, "card_type": "credit", "doc_id": "doc1"}],
+    )
+
+    out = tmp_path / "csv"
+    summary = export.export_files(result_dir, chunk_dir, index_dir, "test", out, run_id="run1")
+    nodes = list(csv.DictReader((out / "pf_nodes.csv").open(encoding="utf-8")))
+    edges = list(csv.DictReader((out / "pf_edges.csv").open(encoding="utf-8")))
+
+    card_ids = {n["id"] for n in nodes if n["node_type"] == "Card"}
+    assert card_ids == ({expected_card} if expected_card else set())
+    assert sum(e["edge_type"] == "OFFERS" for e in edges) == expected_offers
+    assert summary["invalid_rows"].get("missing_product_key", 0) == expected_missing

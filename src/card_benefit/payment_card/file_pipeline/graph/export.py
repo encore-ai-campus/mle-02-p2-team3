@@ -130,7 +130,7 @@ def export_files(result_dir, chunk_dir, index_dir, model_name, output_dir, run_i
 
         for product in products_by_doc.get(doc_id, []):
             ids = json.loads(product.get("product_ids") or "{}")
-            product_key = next((ids.get(k) for k in ("CD_ID", "PC_SEQ", "디자인코드", "모바일_CD_NO") if ids.get(k)), None)
+            product_key = next((ids.get(k) for k in ("CD_ID", "PC_SEQ", "디자인코드", "모바일_CD_NO", "product_code") if ids.get(k)), None)
             if not product_key:
                 invalid["missing_product_key"] += 1
                 continue

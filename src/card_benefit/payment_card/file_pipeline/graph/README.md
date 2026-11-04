@@ -72,7 +72,21 @@ CSV는 UTF-8 헤더 포함 파일로 정의한다. 빈 선택값은 빈 칸으�
 - `pf_edges.csv`: `id,source_id,target_id,edge_type,run_id`
 - `pf_evidence.csv`: `node_id,edge_id,doc_sha256,page_no,start_pos,end_pos,quote_status` (대상 쪽 하나만 채움)
 
-나중에 구현할 적재 스크립트는 드라이런을 기본값으로 하고 `--execute`를 명시해야만 쓴다. 쓰기 대상 테이블 allowlist는 코드에 고정하고, 접속 설정은 환경 변수 이름 `PF_DATABASE_URL`만 문서와 인자로 다룬다(값 출력·기록 금지). 허용된 `pf_` 테이블 외에는 절대 쓰지 않는다. 한 번의 적재는 `run_id`로 묶고 재실행/정리 단위로 사용한다.
+적재기는 기본 드라이런으로 CSV 검증과 테이블별 건수만 출력한다. 먼저 드라이런 결과를 확인한 뒤 사용자 환경에 `PF_DATABASE_URL`을 설정하고 `--execute`를 명시해야 실제 적재한다. 적재는 `pf_load_runs → pf_nodes → pf_edges → pf_evidence` 순으로 테이블당 최대 1,000행을 묶어 한 트랜잭션에서 처리한다. 중복 `run_id`는 거부한다.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.graph.load --csv-dir <CSV_DIR>
+UV_CACHE_DIR=/tmp/uv-cache PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.graph.load --csv-dir <CSV_DIR> --execute
+```
+
+실행할 때 `--delete-run <run_id>`를 지정하면 삭제 대상 건수만 드라이런으로 확인한다. 건수를 검토한 뒤 `--execute`를 추가해야 실제 삭제한다. 근거, 엣지, 노드, 적재 기록 순으로 `pf_` 테이블만 삭제하며, CSV 경로는 필요하지 않다.
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.graph.load --delete-run <run_id>
+UV_CACHE_DIR=/tmp/uv-cache PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.graph.load --delete-run <run_id> --execute
+```
+
+접속 설정은 환경 변수 이름 `PF_DATABASE_URL`로만 다루며 값은 문서나 출력에 기록하지 않는다. 쓰기·삭제 대상은 코드에 고정된 `pf_` 테이블뿐이다. 한 번의 적재는 `run_id`로 묶고 재실행/정리 단위로 사용한다.
 
 ## 다음 단계
 

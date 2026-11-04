@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Literal, get_args, get_origin
 
-from .schema import ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target
+from .schema import ALLOWED_RELATIONS, Benefit, Condition, Extraction, Limit, Relation, Target, TargetKind
 
 
 EXAMPLE_OUTPUT = {
@@ -141,6 +141,7 @@ def build_prompt(chunk: dict) -> str:
     ))
     relation_pairs = ", ".join(f"{name}: {source}→{target}"
                                 for name, (source, target) in ALLOWED_RELATIONS.items())
+    target_kinds = ", ".join(get_args(TargetKind))
     example_json = json.dumps(EXAMPLE_OUTPUT, ensure_ascii=False, indent=2)
     return f"""카드 혜택 청크에서 혜택, 조건, 한도, 대상, 관계를 추출하세요.
 원문에 없는 내용을 추측하지 마세요. 모든 엔티티와 관계의 evidence에는 원문 그대로의 인용문을 하나 이상 넣으세요.
@@ -164,6 +165,8 @@ id에는 ASCII 영문자, 숫자, 밑줄(_), 하이픈(-)만 허용합니다. �
 
 추출 규칙:
 - CHANNEL 은 Target(대상)의 kind 전용 값이다. Condition(조건)의 kind 에는 쓰지 말고, 온라인/오프라인·앱 결제 같은 채널성 조건은 PAYMENT 또는 USAGE 로, 가맹점 조건은 MERCHANT 로, 해당하지 않으면 OTHER 로 분류하라.
+- Limit.amount 는 정수 타입이므로 금액은 원, 횟수는 횟수 단위로 환산한 숫자만 쓰세요. 만원·천원·억 등의 금액 단위는 원 단위 정수로 환산하세요(예: 3만원 → 30000). 숫자로 환산할 수 없거나 '무제한'·구간 표·비율이면 amount는 null로 두고 원문 표현은 evidence에 남기세요. Condition.amount는 원문 문자열을 허용하지만 Limit.amount에는 문자열을 넣지 마세요.
+- Target.kind 허용값은 {target_kinds}뿐입니다. PAYMENT, USAGE, SPEND_REQ, EXCLUDE는 Condition 전용이므로 Target.kind에 쓰지 마세요. 결제수단·카드 종류 같은 대상은 해당하는 Target 값 또는 OTHER로 분류하세요.
 - evidence의 text는 청크 원문에서 연속된 구간을 한 글자도 바꾸지 말고 그대로 복사하세요. 요약, 줄임표, 재서술을 금지하며 공백과 문장부호도 그대로 유지하세요.
 - 인용문은 가능한 한 짧고 항목을 뒷받침하는 한 구간으로 쓰고, 한 인용문에 여러 문장을 이어 붙이지 마세요.
 - 같은 인용문이 청크 안에 두 번 이상 나오지 않도록, 한 문장 안에서 해당 항목에만 해당하는 금액·업종명·혜택명 같은 구별되는 단어를 가능한 한 포함해 인용문을 고르세요.

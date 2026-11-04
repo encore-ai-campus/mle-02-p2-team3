@@ -64,6 +64,20 @@ class ExtractionRunnerTest(unittest.TestCase):
         self.assertIn("CHANNEL", target_kinds)
         self.assertTrue({"PAYMENT", "USAGE", "MERCHANT", "OTHER"} <= condition_kinds)
 
+    def test_prompt_clarifies_limit_amount_is_integer_and_converted(self):
+        prompt = build_prompt(CHUNK)
+        self.assertIn("Limit.amount 는 정수 타입이므로 금액은 원, 횟수는 횟수 단위로 환산한 숫자만 쓰세요.", prompt)
+        self.assertIn("3만원 → 30000", prompt)
+        self.assertIn("Condition.amount는 원문 문자열을 허용하지만 Limit.amount에는 문자열을 넣지 마세요.", prompt)
+        self.assertEqual(Limit.model_fields["amount"].annotation, int | None)
+
+    def test_prompt_clarifies_target_kind_values_and_condition_only_kinds(self):
+        prompt = build_prompt(CHUNK)
+        target_kinds = set(get_args(TargetKind))
+        self.assertNotIn("PAYMENT", target_kinds)
+        self.assertIn("Target.kind 허용값은 MERCHANT, INDUSTRY, CHANNEL, SERVICE, OTHER뿐입니다.", prompt)
+        self.assertIn("PAYMENT, USAGE, SPEND_REQ, EXCLUDE는 Condition 전용이므로 Target.kind에 쓰지 마세요.", prompt)
+
     def test_prompt_lists_schema_fields_and_literal_values(self):
         prompt = build_prompt(CHUNK)
         for model in (Benefit, Condition, Limit, Target, Relation):

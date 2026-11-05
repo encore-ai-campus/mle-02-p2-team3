@@ -184,6 +184,9 @@ def load_csvs(csv_dir, *, execute=False):
                             value = _jsonb(json.loads(value))
                         elif table == "fp_evidence" and column in ("page_no", "start_pos", "end_pos"):
                             value = int(value) if value else None
+                        elif (table == "fp_evidence" and column in ("node_id", "edge_id")) or (table == "fp_nodes" and column == "chunk_id"):
+                            # CSV 빈 칸은 NULL 이어야 한다. '' 로 들어가면 fp_evidence_exactly_one_target 체크에 걸린다.
+                            value = value or None
                         elif table == "fp_load_runs" and column in ("node_count", "edge_count"):
                             value = int(value)
                         values.append(value)

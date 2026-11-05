@@ -78,3 +78,19 @@ def test_openai_adapter_fake_client_and_cost_estimate(monkeypatch,capsys):
     assert calls[0]['model']=='gpt-6-luna' and 'temperature' not in calls[0]
     assert patch.estimate(60)['label']=='estimate'
     assert 'api_key' not in capsys.readouterr().out
+
+
+def test_load_db_does_not_import_rag_or_llm(monkeypatch):
+    """LLM 없는 시험이므로 anthropic 을 가져오는 rag/llm 모듈을 불러오면 안 된다."""
+    import sys, types
+    from payment_card.file_pipeline.chat import retrieval_eval
+    calls = []
+    fake = types.SimpleNamespace(run_query=lambda q, p=None: calls.append(q) or [])
+    monkeypatch.setitem(sys.modules, "db", fake)
+    for name in ("rag", "llm"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    nodes, edges = retrieval_eval.load_db()
+    assert (nodes, edges) == ([], [])
+    assert fake.NODES == "fp_chat.nodes" and fake.EDGES == "fp_chat.edges"
+    assert "rag" not in sys.modules and "llm" not in sys.modules
+    assert all("select" in q and "fp_chat." in q for q in calls) and len(calls) == 2

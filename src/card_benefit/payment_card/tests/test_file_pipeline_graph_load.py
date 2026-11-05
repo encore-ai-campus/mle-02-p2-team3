@@ -128,3 +128,23 @@ def test_unallowlisted_csv_is_rejected(tmp_path):
         assert "allowlist" in str(exc)
     else:
         assert False, "unallowlisted table file must be rejected"
+
+
+def test_execute_converts_empty_evidence_targets_and_chunk_id_to_null(tmp_path, monkeypatch):
+    """CSV 빈 칸이 '' 로 DB 에 들어가면 fp_evidence_exactly_one_target 체크 위반이 된다(실제 적재에서 발생)."""
+    _files(tmp_path)
+    sha = "a" * 64
+    _csv(tmp_path / "fp_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"],
+         [{"id": "a", "node_type": "Benefit", "props": "{}", "chunk_id": "", "run_id": "r1"},
+          {"id": "b", "node_type": "Condition", "props": "{}", "chunk_id": "c", "run_id": "r1"}])
+    _csv(tmp_path / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"],
+         [{"node_id": "a", "edge_id": "", "doc_sha256": sha, "page_no": 1, "start_pos": 1, "end_pos": 2, "quote_status": "located"},
+          {"node_id": "", "edge_id": "e", "doc_sha256": sha, "page_no": "", "start_pos": "", "end_pos": "", "quote_status": "missing"}])
+    conn = FakeConn(); monkeypatch.setattr(load, "_connect", lambda url: conn); monkeypatch.setenv("FP_DATABASE_URL", "secret")
+    load.load_csvs(tmp_path, execute=True)
+    by_table = {load._table_for_sql(sql): rows for sql, rows in conn.cur.batch_calls}
+    assert by_table["fp_nodes"][0][3] is None and by_table["fp_nodes"][1][3] == "c"
+    ev = by_table["fp_evidence"]
+    assert ev[0][0] == "a" and ev[0][1] is None
+    assert ev[1][0] is None and ev[1][1] == "e"
+    assert all((row[0] is None) != (row[1] is None) for row in ev)

@@ -58,7 +58,8 @@ def main(argv=None):
     parser.add_argument("questions", help="eval_questions JSON (under /tmp)")
     parser.add_argument("--mode", choices=("answer", "retrieval"), default="answer")
     parser.add_argument("--source", choices=("csv", "db"), default="csv")
-    parser.add_argument("--seed-mode", choices=("contains", "oracle"), default="contains")
+    parser.add_argument("--seed-mode", choices=("contains", "fuzzy", "oracle"), default="contains")
+    parser.add_argument("--seed-threshold", type=float, default=0.15)
     parser.add_argument("--hops", type=int, choices=(1, 2, 3), default=2)
     parser.add_argument("--csv-dir", action="append", default=[])
     parser.add_argument("--summary", default="/tmp/fp-retrieval-summary.json")
@@ -71,7 +72,7 @@ def main(argv=None):
         raise ValueError("질문 JSON은 /tmp 아래에 있어야 합니다.")
     if args.mode == "retrieval":
         from retrieval_eval import main as retrieval_main
-        argv = [str(qpath), "--source", args.source, "--seed-mode", args.seed_mode, "--hops", str(args.hops), "--output", args.output, "--summary", args.summary]
+        argv = [str(qpath), "--source", args.source, "--seed-mode", args.seed_mode, "--seed-threshold", str(args.seed_threshold), "--hops", str(args.hops), "--output", args.output, "--summary", args.summary]
         if args.execute: argv.append("--execute")
         for folder in args.csv_dir: argv.extend(["--csv-dir", folder])
         return retrieval_main(argv)

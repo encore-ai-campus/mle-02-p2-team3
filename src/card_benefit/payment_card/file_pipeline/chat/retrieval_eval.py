@@ -116,13 +116,27 @@ def aggregate(rows):
     total={}
     for key in ('seed_hits','seed_expected','expected_hits','expected_count','nodes','edges','truncated','source_display','full_recall','elapsed_seconds','ambiguous_seed_nodes'):
         total[key]=sum(r[key] for r in rows)
-    total.update(questions=len(rows),seed_hit_rate=total['seed_hits']/total['seed_expected'] if total['seed_expected'] else 0,expected_node_recall=total['expected_hits']/total['expected_count'] if total['expected_count'] else 0,full_recall_rate=total['full_recall']/len(rows) if rows else 0,avg_nodes=total['nodes']/len(rows) if rows else 0,avg_edges=total['edges']/len(rows) if rows else 0,truncation_rate=total['truncated']/len(rows) if rows else 0,source_display_rate=total['source_display']/len(rows) if rows else 0,avg_seconds=total['elapsed_seconds']/len(rows) if rows else 0)
+    correct=sum(r.get('seed_correct_count',r['seed_hits']) for r in rows)
+    selected=sum(r.get('selected_seed_count',0) for r in rows)
+    total.update(questions=len(rows),seed_hit_rate=total['seed_hits']/total['seed_expected'] if total['seed_expected'] else 0,seed_precision=correct/selected if selected else 0,avg_wrong_seeds=sum(r.get('wrong_seed_count',0) for r in rows)/len(rows) if rows else 0,expected_node_recall=total['expected_hits']/total['expected_count'] if total['expected_count'] else 0,full_recall_rate=total['full_recall']/len(rows) if rows else 0,avg_nodes=total['nodes']/len(rows) if rows else 0,avg_edges=total['edges']/len(rows) if rows else 0,truncation_rate=total['truncated']/len(rows) if rows else 0,source_display_rate=total['source_display']/len(rows) if rows else 0,avg_seconds=total['elapsed_seconds']/len(rows) if rows else 0)
     return total
 
-def evaluate(questions,nodes,edges,seed_mode='contains',hops=2,n=3):
+def evaluate(questions,nodes,edges,seed_mode='contains',hops=2,n=3,seed_threshold=0.15):
+    matcher = None
+    if seed_mode == 'fuzzy':
+        try:
+            from .seed_matcher import SeedMatcher
+        except ImportError:
+            from seed_matcher import SeedMatcher
+        matcher = SeedMatcher(nodes)
     out=[]
     for q in questions:
-        start=time.perf_counter(); seeds=select_seeds(nodes,q,seed_mode,n); sub=traverse(nodes,edges,seeds,hops); metric=question_metrics(q,sub,time.perf_counter()-start,selected_seeds=seeds,nodes_all=nodes)
+        start=time.perf_counter(); seeds=matcher.select(q.get('question',''),n,threshold=seed_threshold) if matcher else select_seeds(nodes,q,seed_mode,n); sub=traverse(nodes,edges,seeds,hops); metric=question_metrics(q,sub,time.perf_counter()-start,selected_seeds=seeds,nodes_all=nodes)
+        expected=set(map(str,q.get('seed_entities',[])))
+        metric['seed_correct_count']=len(expected.intersection(seeds))
+        metric['selected_seed_count']=len(seeds)
+        metric['seed_precision']=metric['seed_correct_count']/len(seeds) if seeds else 0.0
+        metric['wrong_seed_count']=len(set(seeds)-expected)
         out.append({'id':q.get('id'),'type':q.get('type'),'metrics':metric,'seeds':seeds})
     return out
 
@@ -134,7 +148,7 @@ def run_retrieval(args):
         print(json.dumps({'mode':'dry-run','source':'db','question_count':len(qs),'would_connect':False}))
         return 0
     nodes,edges=load_csv(args.csv_dir) if args.source=='csv' else load_db()
-    rows=evaluate(qs,nodes,edges,args.seed_mode,args.hops,args.seed_count)
+    rows=evaluate(qs,nodes,edges,args.seed_mode,args.hops,args.seed_count,args.seed_threshold)
     out=safe_output(args.output); summary=safe_output(args.summary); out.parent.mkdir(parents=True,exist_ok=True); summary.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(''.join(json.dumps(r,ensure_ascii=False)+'\n' for r in rows),encoding='utf-8')
     bytype={t:aggregate([r['metrics'] for r in rows if r['type']==t]) for t in sorted({r['type'] for r in rows})}
@@ -154,17 +168,19 @@ def run_retrieval(args):
     print(json.dumps(result,ensure_ascii=False))
     return 0
 
-def load_db():
-    # Opt-in only; uses the team's existing read-only query wrapper.
-    from fp_chat_patch import apply
-    rag=apply(); db=__import__('db')
-    names=[r['name'] for r in db.run_query(f'select distinct name from {db.NODES}')]
+def load_db(schema='fp_chat'):
+    # Opt-in only. Imports the team's db module only (read-only run_query); rag/llm are NOT imported,
+    # so no LLM package or API key is needed for this retrieval-only evaluation.
+    import re
+    if not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*',schema): raise ValueError('invalid schema')
+    db=__import__('db')
+    db.SCHEMA=schema; db.NODES=f'{schema}.nodes'; db.EDGES=f'{schema}.edges'
     nodes=db.run_query(f'select id::text as id,name,label,props from {db.NODES}')
     edges=db.run_query(f'select source::text as source,target::text as target,type from {db.EDGES}')
     return [dict(r) for r in nodes], [dict(r) for r in edges]
 
 def main(argv=None):
-    p=argparse.ArgumentParser(); p.add_argument('questions',nargs='?'); p.add_argument('--make-questions',action='store_true'); p.add_argument('--hana',default='/tmp/fp-check-hana'); p.add_argument('--woori',default='/tmp/fp-check-woori'); p.add_argument('--source',choices=['csv','db'],default='csv'); p.add_argument('--csv-dir',action='append',default=[]); p.add_argument('--seed-mode',choices=['contains','oracle'],default='contains'); p.add_argument('--seed-count',type=int,default=3); p.add_argument('--hops',type=int,choices=[1,2,3],default=2); p.add_argument('--execute',action='store_true'); p.add_argument('--output',default='/tmp/fp-retrieval.jsonl'); p.add_argument('--summary',default='/tmp/fp-retrieval-summary.json'); a=p.parse_args(argv)
+    p=argparse.ArgumentParser(); p.add_argument('questions',nargs='?'); p.add_argument('--make-questions',action='store_true'); p.add_argument('--hana',default='/tmp/fp-check-hana'); p.add_argument('--woori',default='/tmp/fp-check-woori'); p.add_argument('--source',choices=['csv','db'],default='csv'); p.add_argument('--csv-dir',action='append',default=[]); p.add_argument('--seed-mode',choices=['contains','fuzzy','oracle'],default='contains'); p.add_argument('--seed-count',type=int,default=3); p.add_argument('--seed-threshold',type=float,default=0.15); p.add_argument('--hops',type=int,choices=[1,2,3],default=2); p.add_argument('--execute',action='store_true'); p.add_argument('--output',default='/tmp/fp-retrieval.jsonl'); p.add_argument('--summary',default='/tmp/fp-retrieval-summary.json'); a=p.parse_args(argv)
     if a.make_questions:
         from eval_questions import write_questions
         questions,_=write_questions([a.hana,a.woori],'/tmp/fp-retrieval-questions.json',per_type=10)

@@ -6,11 +6,19 @@ from pathlib import Path
 import re
 import sys
 
+try:
+    from .db_pool import PoolQueryRunner
+except ImportError:  # Script-style imports from this directory.
+    from db_pool import PoolQueryRunner
+
 _CHATBOT_DIR = Path(__file__).resolve().parents[4] / "graphrag_chatbot"
 _CURRENT_QUESTION: ContextVar[str] = ContextVar("fp_chat_question", default="")
 _ORIGINAL_ANSWER = None
 _ORIGINAL_LIST_ENTITIES = None
 _ORIGINAL_ANALYZE = None
+_ORIGINAL_RUN_QUERY = None
+_POOL_RUN_QUERY = None
+_PATCHED_DB = None
 
 
 def _load_modules():
@@ -85,7 +93,17 @@ def apply(schema: str = "fp_chat"):
     if not isinstance(schema, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema):
         raise ValueError("schema must match [A-Za-z_][A-Za-z0-9_]*")
     global _ORIGINAL_ANSWER, _ORIGINAL_LIST_ENTITIES, _ORIGINAL_ANALYZE
+    global _ORIGINAL_RUN_QUERY, _POOL_RUN_QUERY, _PATCHED_DB
     db = _load_modules()
+    if _ORIGINAL_RUN_QUERY is None:
+        _ORIGINAL_RUN_QUERY = db.run_query
+        _PATCHED_DB = db
+    if __import__("os").environ.get("FP_DB_POOL") == "0":
+        db.run_query = _ORIGINAL_RUN_QUERY
+    else:
+        if _POOL_RUN_QUERY is None:
+            _POOL_RUN_QUERY = PoolQueryRunner(_ORIGINAL_RUN_QUERY)
+        db.run_query = _POOL_RUN_QUERY
     db.SCHEMA = schema
     db.NODES = f"{schema}.nodes"
     db.EDGES = f"{schema}.edges"
@@ -116,3 +134,10 @@ def apply(schema: str = "fp_chat"):
             return original_analyze(question, entities)
         rag.analyze = analyze
     return rag
+
+
+def restore():
+    """Restore the team DB query function after an opt-in patch."""
+    global _PATCHED_DB
+    if _PATCHED_DB is not None and _ORIGINAL_RUN_QUERY is not None:
+        _PATCHED_DB.run_query = _ORIGINAL_RUN_QUERY

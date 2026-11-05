@@ -6,6 +6,7 @@ import csv
 import json
 import hashlib
 import re
+import sys
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -18,6 +19,9 @@ _RELATION_LABELS = {
 }
 _SAFE_TYPE = re.compile(r"^[A-Za-z_]+$")
 _BATCH_SIZE = 500
+NODE_KIND_KO = {"Issuer": "발급사", "Card": "카드", "Benefit": "혜택", "Condition": "조건", "Limit": "한도", "Target": "적용 대상", "Evidence": "근거"}
+RELATION_LABEL_KO = {"OFFERS": "제공", "HAS_CONDITION": "조건 있음", "HAS_LIMIT": "한도 있음", "APPLIES_TO": "적용 대상", "EXCLUDES": "제외 대상", "MUTUALLY_EXCLUSIVE": "같이 못 받음", "HAS_EVIDENCE": "근거 있음"}
+ENUM_KO = {"method": {"DISCOUNT": "할인", "CASHBACK": "캐시백", "POINT": "포인트"}, "kind": {"SPEND_REQ": "이용 실적", "EXCLUDE": "제외", "USAGE": "이용 조건", "PAYMENT": "결제 수단", "MERCHANT": "가맹점", "OTHER": "기타"}, "period": {"TXN": "건별", "DAY": "일별", "MONTH": "월별", "YEAR": "연간", "UNKNOWN": "미상"}, "target_kind": {"MERCHANT": "가맹점", "INDUSTRY": "업종", "CHANNEL": "채널", "SERVICE": "서비스", "OTHER": "기타"}}
 
 
 def _read_rows(path: Path) -> list[dict[str, str]]:
@@ -174,7 +178,7 @@ def _sample_rows(nodes, edges, evidence, card_ids, max_benefits):
     return selected_nodes, related_edges, selected_evidence, cut
 
 
-def _build(nodes, edges, evidence, header=None):
+def _build(nodes, edges, evidence, header=None, lang="en", warnings=None):
     lines = [header or "// Neo4j Browser용 CSV 적재 스크립트. 재실행 가능한 MERGE를 사용합니다."]
     for label in _LABELS:
         lines.append(f"CREATE CONSTRAINT fp_{label.lower()}_id_unique IF NOT EXISTS FOR (n:Fp{label}) REQUIRE n.id IS UNIQUE;")
@@ -188,14 +192,35 @@ def _build(nodes, edges, evidence, header=None):
             props = row.get("parsed_props", _node_props(row.get("props", "{}")))
             props.update({"id": row["id"], "run_id": row.get("run_id", ""), "chunk_id": row.get("chunk_id", "")})
             props["name"] = _caption(label, row["id"], props)
+            if lang == "ko":
+                props["kind_ko"] = NODE_KIND_KO[label]
+                for key, mapping in ENUM_KO.items():
+                    if key == "kind" and label == "Target":
+                        target_key, mapping = "target_kind_ko", ENUM_KO["target_kind"]
+                    elif key == "kind" and label != "Condition":
+                        continue
+                    else:
+                        target_key = {"kind": "cond_kind_ko"}.get(key, f"{key}_ko")
+                    if key in props and props[key] is not None:
+                        value = str(props[key])
+                        if value in mapping:
+                            props[target_key] = mapping[value]
+                        else:
+                            props[target_key] = value
+                            warnings[value] = warnings.get(value, 0) + 1
+                props["caption_ko"] = f"[{NODE_KIND_KO[label]}] {props['name']}"[:80]
             label_rows.append(props)
         lines.extend(_unwind(label_rows, f"MERGE (n:Fp{label} {{id: row.id}})\nSET n += row;"))
 
     for rel_type in _RELATION_TYPES:
         rel_rows = [row for row in edges if _validated_type(row["edge_type"], _RELATION_TYPES, "edge_type") == rel_type]
         source_label, target_label = _RELATION_LABELS[rel_type]
+        if lang == "ko":
+            rel_rows = [dict(row, label_ko=RELATION_LABEL_KO[rel_type]) for row in rel_rows]
         clause = (f"MATCH (source:Fp{source_label} {{id: row.source_id}}), (target:Fp{target_label} {{id: row.target_id}})\n"
                   f"MERGE (source)-[r:FP_{rel_type} {{id: row.id}}]->(target)\nSET r.run_id = row.run_id;")
+        if lang == "ko":
+            clause = clause.replace("SET r.run_id = row.run_id;", "SET r.run_id = row.run_id, r.label_ko = row.label_ko;")
         lines.extend(_unwind(rel_rows, clause))
 
     evidence_rows = []
@@ -208,6 +233,9 @@ def _build(nodes, edges, evidence, header=None):
                   "end_pos": int(row["end_pos"]) if row.get("end_pos") else None,
                   "quote_status": row["quote_status"]}
         values["name"] = (f"{row['quote_status']} p.{row['page_no']}" if row.get("page_no") else str(row["quote_status"]))
+        if lang == "ko":
+            values["kind_ko"] = NODE_KIND_KO["Evidence"]
+            values["caption_ko"] = f"[근거] {values['name']}"[:80]
         if row.get("edge_id"):
             values["edge_id"] = row["edge_id"]
         if row.get("node_id"):
@@ -231,7 +259,38 @@ def build_script(csv_dir: Path) -> tuple[str, dict[str, int]]:
     return _build(*_data(csv_dir))
 
 
-def export_cypher(csv_dir: str | Path, output: str | Path, card_ids=None, max_benefits=15) -> dict[str, int]:
+def _grass(lang="en"):
+    caption = "caption_ko" if lang == "ko" else "name"
+    lines = []
+    colors = {"Issuer":"#4C78A8", "Card":"#72B7B2", "Benefit":"#F2CF5B", "Condition":"#B279A2", "Limit":"#E45756", "Target":"#54A24B", "Evidence":"#9D755D"}
+    for label in (*_LABELS, "Evidence"):
+        lines.append(f"node.Fp{label} {{ diameter: 50; color: {colors[label]}; border-color: #333333; text-color-internal: #111111; font-size: 12; caption: \"{{{caption}}}\"; }}")
+    for rel_type in (*_RELATION_TYPES, "HAS_EVIDENCE"):
+        lines.append(f"relationship.FP_{rel_type} {{ shaft-width: 2; caption: \"{{label_ko}}\"; }}")
+    return "\n".join(lines) + "\n"
+
+
+def _backfill():
+    lines = ["// 한국어 표시 속성 추가. 기존 영어 속성과 스키마는 유지합니다."]
+    for label in (*_LABELS, "Evidence"):
+        ko = NODE_KIND_KO[label]
+        assignments = [f"n.kind_ko = {_string(ko)}", f"n.caption_ko = left('[' + {_string(ko)} + '] ' + toString(coalesce(n.name, n.id)), 80)"]
+        enum_specs = {"Benefit": ("method", "method_ko", ENUM_KO["method"]), "Condition": ("kind", "cond_kind_ko", ENUM_KO["kind"]), "Limit": ("period", "period_ko", ENUM_KO["period"]), "Target": ("kind", "target_kind_ko", ENUM_KO["target_kind"])}
+        if label in enum_specs:
+            source, target, mapping = enum_specs[label]
+            cases = " ".join(f"WHEN {_string(k)} THEN {_string(v)}" for k, v in mapping.items())
+            assignments.append(f"n.{target} = CASE n.{source} {cases} ELSE toString(n.{source}) END")
+        lines.append(f"MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Fp') AND 'Fp{label}' IN labels(n) SET " + ", ".join(assignments) + ";")
+    for rel, ko in RELATION_LABEL_KO.items():
+        lines.append(f"MATCH ()-[r:FP_{rel}]->() WHERE type(r) STARTS WITH 'FP_' SET r.label_ko = {_string(ko)};")
+    lines.append("// 되돌리기: 한국어 표시 속성 제거")
+    lines.append("MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Fp') REMOVE n.kind_ko, n.caption_ko, n.method_ko, n.cond_kind_ko, n.period_ko, n.target_kind_ko;")
+    for rel in RELATION_LABEL_KO:
+        lines.append(f"MATCH ()-[r:FP_{rel}]->() WHERE type(r) STARTS WITH 'FP_' REMOVE r.label_ko;")
+    return "\n".join(lines) + "\n"
+
+
+def export_cypher(csv_dir: str | Path, output: str | Path, card_ids=None, max_benefits=15, lang="en", grass_out=None, backfill_ko_out=None) -> dict[str, int]:
     csv_dir, output = Path(csv_dir).expanduser().resolve(), Path(output).expanduser().resolve()
     if output == _REPO_ROOT or _REPO_ROOT in output.parents:
         raise ValueError("출력 파일은 저장소 밖이어야 합니다.")
@@ -240,12 +299,27 @@ def export_cypher(csv_dir: str | Path, output: str | Path, card_ids=None, max_be
         nodes, edges, evidence, cut = _sample_rows(nodes, edges, evidence, card_ids, max_benefits)
         header = ("// 샘플 스크립트: 선택 카드 " + ", ".join(card_ids) +
                   f"; 노드 {len(nodes)}, 엣지 {len(edges)}, 근거 {len(evidence)}, 잘린 혜택 {cut}")
-        script, counts = _build(nodes, edges, evidence, header)
+        warnings = {}
+        script, counts = _build(nodes, edges, evidence, header, lang, warnings)
         counts["cut_benefits"] = cut
     else:
-        script, counts = _build(nodes, edges, evidence)
+        warnings = {}
+        script, counts = _build(nodes, edges, evidence, lang=lang, warnings=warnings)
+    for extra in (grass_out, backfill_ko_out):
+        if extra and (_REPO_ROOT == Path(extra).expanduser().resolve() or _REPO_ROOT in Path(extra).expanduser().resolve().parents):
+            raise ValueError("부가 출력 파일은 저장소 밖이어야 합니다.")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(script, encoding="utf-8")
+    if warnings:
+        print("한국어 enum 매핑 누락: " + json.dumps(warnings, ensure_ascii=False, sort_keys=True), file=sys.stderr)
+    if grass_out:
+        grass_path = Path(grass_out).expanduser().resolve()
+        grass_path.parent.mkdir(parents=True, exist_ok=True)
+        grass_path.write_text(_grass(lang), encoding="utf-8")
+    if backfill_ko_out:
+        backfill_path = Path(backfill_ko_out).expanduser().resolve()
+        backfill_path.parent.mkdir(parents=True, exist_ok=True)
+        backfill_path.write_text(_backfill(), encoding="utf-8")
     return counts
 
 
@@ -256,6 +330,9 @@ def main(argv=None) -> None:
     parser.add_argument("--list-cards", type=int)
     parser.add_argument("--card-id", action="append", default=[])
     parser.add_argument("--max-benefits", type=int, default=15)
+    parser.add_argument("--lang", choices=("en", "ko"), default="en")
+    parser.add_argument("--grass-out")
+    parser.add_argument("--backfill-ko-out")
     args = parser.parse_args(argv)
     if args.list_cards is not None:
         print("card_id\tproduct_name\tbenefits\tconditions\tlimits\ttargets\tevidence")
@@ -264,7 +341,7 @@ def main(argv=None) -> None:
         return
     if not args.output:
         parser.error("--output is required unless --list-cards is used")
-    counts = export_cypher(args.csv_dir, args.output, args.card_id or None, args.max_benefits)
+    counts = export_cypher(args.csv_dir, args.output, args.card_id or None, args.max_benefits, args.lang, args.grass_out, args.backfill_ko_out)
     print(json.dumps(counts, ensure_ascii=False, sort_keys=True))
 
 

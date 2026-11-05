@@ -77,3 +77,27 @@ OPTIONAL MATCH (node)-[:FP_HAS_EVIDENCE]->(e:FpEvidence)
 WITH n AS node, collect(e.quote_status) AS statuses
 WHERE size(statuses) = 0 OR any(status IN statuses WHERE status IN ['ambiguous', 'missing'])
 RETURN count(node) AS nodes_with_ambiguous_or_missing_evidence;
+
+// 한국어 보기 쿼리: 캡션 속성 생성 후 실행
+// 혜택, 관계, 조건 종류와 한도·대상 내용을 함께 확인
+MATCH (c:FpCard)-[:FP_OFFERS]->(b:FpBenefit)
+OPTIONAL MATCH (b)-[r:FP_HAS_CONDITION]->(condition:FpCondition)
+OPTIONAL MATCH (b)-[:FP_HAS_LIMIT]->(limit:FpLimit)
+OPTIONAL MATCH (b)-[:FP_APPLIES_TO|FP_EXCLUDES]->(target:FpTarget)
+RETURN coalesce(c.caption_ko, c.name) AS 카드,
+       coalesce(b.caption_ko, b.name) AS 혜택,
+       coalesce(r.label_ko, type(r)) AS 관계,
+       condition.cond_kind_ko AS 조건종류, condition.text AS 조건내용,
+       limit.period_ko AS 한도주기, limit.text AS 한도내용,
+       target.text AS 대상내용
+ORDER BY 카드, 혜택 LIMIT 50;
+
+// 혜택별 조건과 한도 수. 한도와 조건 사이의 연결 관계는 모델에 없음.
+MATCH (c:FpCard)-[:FP_OFFERS]->(b:FpBenefit)
+OPTIONAL MATCH (b)-[:FP_HAS_CONDITION]->(condition:FpCondition)
+WITH c, b, count(DISTINCT condition) AS 조건수
+OPTIONAL MATCH (b)-[:FP_HAS_LIMIT]->(limit:FpLimit)
+RETURN coalesce(c.caption_ko, c.name) AS 카드,
+       coalesce(b.caption_ko, b.name) AS 혜택,
+       조건수, count(DISTINCT limit) AS 한도수
+ORDER BY 카드, 혜택 LIMIT 50;

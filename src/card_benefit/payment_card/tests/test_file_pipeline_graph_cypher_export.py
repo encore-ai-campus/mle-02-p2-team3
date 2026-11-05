@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -38,6 +40,15 @@ def test_exports_escaped_flat_properties_and_nested_json(tmp_path):
     assert ":FpBenefit" in text
     assert "CREATE CONSTRAINT fp_benefit_id_unique" in text
     assert ":Benefit" not in text
+
+
+def test_default_english_output_matches_prechange_golden_bytes(tmp_path):
+    source = tmp_path / "csv"
+    _inputs(source)
+    output = tmp_path / "english.cypher"
+    export_cypher(source, output)
+    digest = hashlib.sha256(output.read_bytes()).hexdigest()
+    assert digest == "4c5e65fdc118449ffb92b64ba4ab33c5547ecaca2f411f3d9c2007707f5143e6"
 
 
 def test_batches_are_split_at_500_rows(tmp_path):
@@ -162,3 +173,63 @@ def test_content_based_evidence_ids_are_stable_and_disjoint(tmp_path):
         outputs.append(set(re.findall(r"evidence:[0-9a-f]{20}", output.read_text(encoding="utf-8"))))
     assert len(outputs[0]) == len(outputs[1]) == 1
     assert outputs[0].isdisjoint(outputs[1])
+
+
+def test_korean_properties_and_sidecar_files(tmp_path):
+    source = tmp_path / "ko-csv"
+    source.mkdir()
+    _write_csv(source / "fp_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"], [
+        {"id": "c", "node_type": "Card", "props": json.dumps({"product_name": "하나"}), "chunk_id": "", "run_id": "r"},
+        {"id": "b", "node_type": "Benefit", "props": json.dumps({"name": "혜택", "method": "DISCOUNT"}), "chunk_id": "x", "run_id": "r"},
+        {"id": "d", "node_type": "Condition", "props": json.dumps({"kind": "SPEND_REQ"}), "chunk_id": "x", "run_id": "r"},
+        {"id": "l", "node_type": "Limit", "props": json.dumps({"period": "MONTH"}), "chunk_id": "x", "run_id": "r"},
+        {"id": "t", "node_type": "Target", "props": json.dumps({"kind": "MERCHANT"}), "chunk_id": "x", "run_id": "r"},
+    ])
+    _write_csv(source / "fp_edges.csv", ["id", "source_id", "target_id", "edge_type", "run_id"], [{"id":"e", "source_id":"c", "target_id":"b", "edge_type":"OFFERS", "run_id":"r"}, {"id":"e2", "source_id":"b", "target_id":"d", "edge_type":"HAS_CONDITION", "run_id":"r"}])
+    _write_csv(source / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"], [])
+    en, ko, grass, backfill = [tmp_path / name for name in ("en.cypher", "ko.cypher", "style.grass", "backfill.cypher")]
+    export_cypher(source, en)
+    explicit_en = tmp_path / "explicit-en.cypher"
+    export_cypher(source, explicit_en, lang="en")
+    assert en.read_bytes() == explicit_en.read_bytes()
+    export_cypher(source, ko, lang="ko", grass_out=grass, backfill_ko_out=backfill)
+    english, korean = en.read_text(), ko.read_text()
+    assert "kind_ko" not in english and "label_ko" not in english
+    assert "kind_ko: '혜택'" in korean and "method_ko: '할인'" in korean
+    assert "cond_kind_ko: '이용 실적'" in korean and "period_ko: '월별'" in korean
+    assert "target_kind_ko: '가맹점'" in korean and "label_ko: '제공'" in korean
+    assert "caption_ko: '[혜택] 혜택'" in korean
+    assert "caption: \"{caption_ko}\"" in grass.read_text()
+    assert all(f"node.Fp{label} {{" in grass.read_text() for label in ("Issuer", "Card", "Benefit", "Condition", "Limit", "Target", "Evidence"))
+    assert all(f"relationship.FP_{rel} {{" in grass.read_text() for rel in ("OFFERS", "HAS_CONDITION", "HAS_LIMIT", "APPLIES_TO", "EXCLUDES", "MUTUALLY_EXCLUSIVE", "HAS_EVIDENCE"))
+    query = backfill.read_text()
+    assert "any(l IN labels(n) WHERE l STARTS WITH 'Fp')" in query
+    assert "type(r) STARTS WITH 'FP_'" in query
+    assert not re.search(r"\[\s*r?\s*\]", query)
+    assert "DETACH DELETE" not in query
+    assert not re.search(r"(?m)^MATCH\s*\(n\)\s*(?:$|;)", query)
+
+
+def test_unknown_enum_is_copied_and_reported_once(tmp_path, capsys):
+    source = tmp_path / "unknown-csv"
+    _graph_csv(source, [("c", "Card")], ["b"], [])
+    nodes = list(csv.DictReader((source / "fp_nodes.csv").open(encoding="utf-8", newline="")))
+    nodes[1]["props"] = json.dumps({"name": "Benefit", "method": "NEW_METHOD"})
+    _write_csv(source / "fp_nodes.csv", list(nodes[0]), nodes)
+    export_cypher(source, tmp_path / "ko.cypher", lang="ko")
+    assert "method_ko: 'NEW_METHOD'" in (tmp_path / "ko.cypher").read_text()
+    assert capsys.readouterr().err.count("NEW_METHOD") == 1
+
+
+def test_korean_caption_is_limited_and_escaped(tmp_path):
+    source = tmp_path / "caption-csv"
+    _graph_csv(source, [("c", "Card")], ["b"], [])
+    nodes = list(csv.DictReader((source / "fp_nodes.csv").open(encoding="utf-8", newline="")))
+    nodes[1]["props"] = json.dumps({"name": "O'Reilly\\path\n" + "가" * 100})
+    _write_csv(source / "fp_nodes.csv", list(nodes[0]), nodes)
+    output = tmp_path / "ko.cypher"
+    export_cypher(source, output, lang="ko")
+    text = output.read_text(encoding="utf-8")
+    assert "O\\'Reilly\\\\path\\n" in text
+    encoded = next(value for value in re.findall(r"caption_ko: '((?:\\.|[^'])*)'", text) if value.startswith("[혜택]"))
+    assert len(encoded.replace("\\'", "'").replace("\\\\", "\\").replace("\\n", "\n")) == 80

@@ -54,6 +54,14 @@ Only use the following reset, which deletes nodes carrying a label that starts w
 MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Fp') DETACH DELETE n
 ```
 
+## 한국어 표시 속성과 Browser 스타일
+
+내보내기에서 `--lang ko`를 지정하면 기존 영문 속성에 `kind_ko`, `label_ko`, enum별 `*_ko`, `caption_ko`를 추가합니다. 기본 `--lang en` 출력은 기존 형식을 유지합니다. 이미 적재한 Fp 그래프는 `--backfill-ko-out /tmp/fp-backfill-ko.cypher`로 생성한 쿼리를 Browser에서 실행할 수 있습니다. 이 쿼리는 Fp 라벨 노드와 `FP_` 관계만 변경하며 같은 값을 다시 설정해도 안전합니다.
+
+`--grass-out /tmp/fp-korean.grass`는 Browser 스타일 파일을 만듭니다. Browser 창에 파일을 끌어 놓거나 `:style` 화면의 Import로 불러오세요. 두 방법의 지원 여부는 Browser 버전별로 미확인입니다. 관계 캡션의 `{label_ko}` 적용도 Browser 버전별 동작 확인이 필요합니다.
+
+한국어 별칭을 사용하는 읽기 전용 예시는 [queries.cypher](queries.cypher)의 “한국어 보기 쿼리” 절을 참고하세요.
+
 ## 주피터 노트북으로 확인
 
 `notebooks/neo4j_sample_check.ipynb`를 열고 셀 0부터 셀 9까지 순서대로 실행합니다. 먼저 셀 3의 기존 `Fp` 라벨을 확인하고 셀 4의 정적 검사 결과가 모두 통과했는지 확인하세요. 실제 적재가 필요할 때만 셀 1에서 `WRITE=True`로 바꾼 뒤 셀 5를 실행합니다. 노트북을 저장하기 전 **Clear All Outputs**를 실행해 출력이 없는 상태로 저장합니다.

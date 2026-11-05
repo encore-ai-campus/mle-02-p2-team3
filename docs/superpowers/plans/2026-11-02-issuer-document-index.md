@@ -80,4 +80,4 @@
 - 실행: `PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.doc_index.cli --issuer {hana|woori} [--overwrite]`
 - 산출물: `src/card_benefit/data/index/{issuer}/{documents.csv,product_docs.csv,summary.json}`
 - 후속 단계(§4-4 배치 처리, 노트북 보조 확인)는 아직 하지 않았다.
-- 작업 이력: [docs/작업이력/2026-11-02-카드사-문서-인덱스.md](../../작업이력/2026-11-02-카드사-문서-인덱스.md)
+- 작업 이력: [docs/작업이력/01-문서인덱스-청킹/2026-11-02-카드사-문서-인덱스.md](../../작업이력/01-문서인덱스-청킹/2026-11-02-카드사-문서-인덱스.md)

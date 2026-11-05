@@ -35,7 +35,7 @@ flowchart LR
 | 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
 | 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
 | 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
-| 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/온톨로지-v1.md` |
+| 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/02-스키마-온톨로지/온톨로지-v1.md` |
 | 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 실행기·이어하기 배치·표본 선정·크기 추정·지연 OpenAI 어댑터·드라이런/재집계 CLI 구현. 노트북 20개 시범 hard 실패 없는 결과 13개. 데스크탑 별도 15개 표본은 추출 성공 10, 빈 추출 2, 호출 실패 3. 7단계 검증 준비 부분 완료 |
 | 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
 
@@ -206,7 +206,7 @@ flowchart TD
     classDef loose fill:#eee,stroke:#999,stroke-dasharray: 4
 ```
 
-`core.py` 안에서 일어나는 일의 순서는 `docs/작업이력/core-단순화-계획.md`의 흐름도에 있다.
+`core.py` 안에서 일어나는 일의 순서는 `docs/작업이력/01-문서인덱스-청킹/core-단순화-계획.md`의 흐름도에 있다.
 
 ## 5. 실행 방법
 
@@ -313,7 +313,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 ## 6. 읽는 순서 (처음 보는 사람)
 
 1. 이 README의 2절 흐름도
-2. `docs/작업이력/2026-11-02-카드사-문서-인덱스.md` — 무엇을 왜 했는지
+2. `docs/작업이력/01-문서인덱스-청킹/2026-11-02-카드사-문서-인덱스.md` — 무엇을 왜 했는지
 3. `doc_index/core.py` 맨 위 설명과 맨 아래 `build_index` — 인덱스가 만들어지는 순서
 4. `notebooks/doc_index_check.ipynb` — 결과를 표로 보기
 5. `traceability.py` — 원문 추적 JSON 구조

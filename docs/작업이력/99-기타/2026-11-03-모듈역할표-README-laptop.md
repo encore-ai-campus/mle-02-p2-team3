@@ -26,5 +26,5 @@
 - 새 모듈을 추가할 때 이 표에 한 줄을 더한다(개인 지침의 폴더 README 갱신 규칙과 같은 취지).
 
 ## 관련 파일
-- [file_pipeline README](../../src/card_benefit/payment_card/file_pipeline/README.md)
+- [file_pipeline README](../../../src/card_benefit/payment_card/file_pipeline/README.md)
 - 커밋 해시: 아직 없음(커밋 후 보강)

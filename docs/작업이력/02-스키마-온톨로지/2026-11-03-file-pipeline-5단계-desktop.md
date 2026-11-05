@@ -14,7 +14,7 @@
 | `file_pipeline/extraction/evidence.py` | 인용문을 청크 원문에서 찾아 쪽 기준 위치로 변환. 공백·제로폭(U+200B–200D, U+FEFF)·벨(U+0007)을 무시하고, 찾은 위치는 원문 인덱스로 되돌린다. |
 | `file_pipeline/extraction/schema.py` | 엔티티 Benefit(혜택), Condition(조건), Limit(한도), Target(대상), 관계 4종. 모든 항목은 인용문 1개 이상. 위치 필드 거부. 관계 연결 검사. Benefit.method는 DISCOUNT·CASHBACK·POINT (기본 None). |
 | `payment_card/tests/test_file_pipeline_extraction.py` | 17개 테스트 (위치 변환 7, 스키마 10: 거부 7, 최소 금액, 한도 unlimited·shared, 혜택 간 관계). 통합 후 기준. 실제 사례(`t1_p0002_001~005`의 "음식점 매장이" 줄)로 확인. |
-| `docs/작업이력/온톨로지-v1.md` | 표본에서 도출한 온톨로지 v1 초안. 표현 예, 엔티티·관계 정의, 범위 밖, 열린 문제. |
+| `docs/작업이력/02-스키마-온톨로지/온톨로지-v1.md` | 표본에서 도출한 온톨로지 v1 초안. 표현 예, 엔티티·관계 정의, 범위 밖, 열린 문제. |
 | `docs/프로젝트-지도.md`, `file_pipeline/README.md` | 5단계 상태를 초안으로 갱신. |
 
 ## 3. 확인된 사실

@@ -5,6 +5,7 @@ import runpy
 import sys
 
 import streamlit as st
+from dotenv import load_dotenv
 
 HERE = Path(__file__).resolve().parent
 CHATBOT_DIR = HERE.parents[3] / "graphrag_chatbot"
@@ -13,7 +14,9 @@ if str(CHATBOT_DIR) not in sys.path:
 from fp_chat_patch import apply
 
 # 팀 llm.py는 Anthropic을 쓰므로, 팀 코드가 import되기 전에 OpenAI 어댑터를 먼저 끼운다(D2, D3).
-# 키는 환경 변수로만 받는다. .env는 열지 않는다.
+# 키는 환경 변수 또는 저장소 루트의 .env에서 받는다(이미 export한 값이 우선). AI는 .env를 열지 않는다(D4).
+# 시험용으로 FP_CHAT_ENV_FILE로 .env 위치를 바꿀 수 있다.
+load_dotenv(os.environ.get("FP_CHAT_ENV_FILE") or HERE.parents[4] / ".env", override=False)
 if not os.environ.get("OPENAI_API_KEY"):
     st.set_page_config(page_title="GraphRAG 챗봇")
     st.error("OPENAI_API_KEY 환경 변수가 필요합니다. 터미널에서 export 한 뒤 다시 실행하세요.")

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ENTRY = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat" / "run_fp_chat.py"
@@ -24,6 +25,7 @@ print("INFO", [i.value for i in at.info])
 
 def _run(env_extra):
     env = {k: v for k, v in os.environ.items() if k not in ("OPENAI_API_KEY", "DB_URL")}
+    env["FP_CHAT_ENV_FILE"] = "/nonexistent/.env"  # 실제 .env를 읽지 않도록 막는다
     env.update(env_extra)
     env["PYTHONPATH"] = os.pathsep.join([str(SRC), str(SRC / "card_benefit")])
     return subprocess.run(
@@ -42,6 +44,21 @@ class RunEntryTest(unittest.TestCase):
         out = _run({"OPENAI_API_KEY": "dummy-no-call"})
         self.assertIn("EXC 0", out)
         self.assertIn("우리 카드 데이터(fp_chat) 모드", out)
+
+    def test_key_from_dotenv_file_without_export(self):
+        with tempfile.TemporaryDirectory() as d:
+            envf = Path(d) / ".env"
+            envf.write_text("OPENAI_API_KEY=dummy-no-call\n", encoding="utf-8")
+            out = _run({"FP_CHAT_ENV_FILE": str(envf)})
+        self.assertIn("EXC 0", out)
+        self.assertIn("우리 카드 데이터(fp_chat) 모드", out)
+
+    def test_exported_value_wins_over_dotenv(self):
+        with tempfile.TemporaryDirectory() as d:
+            envf = Path(d) / ".env"
+            envf.write_text("OPENAI_API_KEY=from-file\n", encoding="utf-8")
+            out = _run({"FP_CHAT_ENV_FILE": str(envf), "OPENAI_API_KEY": "exported"})
+        self.assertIn("EXC 0", out)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 # Inspecting payment card data in Neo4j Browser
 
-## 샘플로 카드 1~2개 확인하기 (기존 Neo4j 사용)
+## 샘플로 카드 1~2개 확인하기 (로컬 Neo4j 전용)
 
-이미 실행 중인 Neo4j(컨테이너 `graphrag-neo4j`, 포트 7474/7687)를 그대로 씁니다. 새 컨테이너는 만들지 않습니다. 이 샘플은 `Fp` 접두사 라벨과 `FP_` 관계만 만들어서 기존 데이터와 섞이지 않습니다.
+기본 점검 대상은 로컬 `graphrag-neo4j` 컨테이너입니다. 이미 9일째 실행 중인 컨테이너를 사용하며 새 컨테이너를 만들지 않습니다. 포트는 Browser `7474`, Bolt `7687`이고 주소는 `bolt://localhost:7687`입니다. 브라우저에서 <http://localhost:7474>를 열어 연결 상태를 확인할 수 있습니다. 로컬 비밀번호는 사용자가 알고 있는 값을 실행 시 직접 입력하며 문서에는 저장하지 않습니다.
+
+`.env`의 `NEO4J_URI`는 팀원 Aura를 가리킬 수 있습니다. 기본 노트북 경로는 `.env`를 읽지 않고 로컬 주소와 입력받은 비밀번호만 사용합니다. 원격 Aura에는 어떤 경우에도 쓰지 않습니다. 원격 읽기가 꼭 필요한 경우에도 `USE_ENV_REMOTE=True`와 `ALLOW_REMOTE=True`가 모두 명시되어야 하고, 원격 쓰기와 삭제는 차단됩니다.
 
 1. 샘플 만들기 (저장소 밖 `/tmp`에 생성):
 
@@ -13,35 +15,20 @@ uv run --locked --no-sync python -m payment_card.file_pipeline.graph.cypher_expo
 uv run --locked --no-sync python -m payment_card.file_pipeline.graph.cypher_export --csv-dir /tmp/fp-check-hana --card-id <카드 id> --output /tmp/fp-sample-hana.cypher
 ```
 
-2. 브라우저에서 <http://localhost:7474>를 열고 기존 계정으로 로그인합니다. 비밀번호는 `.env`의 `NEO4J_*` 값이며 이 문서에 쓰지 않습니다. 사용자가 직접 입력합니다.
-3. 붙여 넣기 전에 기존 라벨을 확인합니다. `Fp`로 시작하는 라벨이 없어야 합니다. 다른 프로젝트 라벨이 보이는 것은 정상입니다.
+2. 브라우저에서 <http://localhost:7474>를 열어 로컬 Neo4j에 직접 로그인합니다. 비밀번호는 문서나 코드에 기록하지 않습니다.
+3. 먼저 라벨을 확인합니다. 팀원 `dp_` 그래프가 보여도 이 샘플은 `Fp` 라벨만 쓰지만, 적재 전 구성을 확인하세요.
 
 ```cypher
 CALL db.labels();
 ```
 
-4. `/tmp/fp-sample-hana.cypher` 파일 내용을 입력창에 붙여 넣고 실행합니다 (제약조건 → 노드 → 관계 → 근거 순서로 만들어집니다). 파일이 커서 붙여 넣기가 안 되면 터미널에서 실행합니다. `<비밀번호>`는 사용자가 직접 넣습니다.
-
-```bash
-cat /tmp/fp-sample-hana.cypher | docker exec -i graphrag-neo4j cypher-shell -u <사용자> -p '<비밀번호>'
-```
-
+4. `/tmp/fp-sample-hana.cypher` 내용을 Neo4j Browser에 붙여 넣고 실행합니다. 생성 스크립트는 `Fp` 라벨과 `FP_` 관계만 사용합니다.
 5. `queries.cypher`의 샘플 확인용 질의를 위에서부터 하나씩 실행하고, 카드 노드를 더블클릭해 연결을 펼쳐 봅니다.
-6. 확인이 끝나면 **`Fp` 라벨만** 지웁니다. 라벨 없는 전체 삭제는 다른 프로젝트 데이터까지 지우므로 쓰지 않습니다.
+6. 확인이 끝나면 **`Fp` 라벨만** 정리합니다. 라벨 없는 전체 삭제는 다른 프로젝트 데이터까지 지우므로 사용하지 않습니다.
 
 ```cypher
 MATCH (n) WHERE any(l IN labels(n) WHERE l STARTS WITH 'Fp') DETACH DELETE n;
 ```
-
-Use the already running Neo4j shared by your local environment. Do not start another Neo4j instance. Open <http://localhost:7474> and enter the existing account at the Neo4j Browser login screen; this document does not store a password.
-
-Before importing, run this first check:
-
-```cypher
-CALL db.labels()
-```
-
-Confirm that no returned label starts with `Fp`. This export uses only `Fp` node labels and `FP_` relationship types to keep this project's graph separate from other projects in the shared database.
 
 ## 1. Convert CSV files to Cypher
 

@@ -1,4 +1,4 @@
-"""Dry-run by default; execute a small GraphRAG evaluation only with --execute."""
+"""Answer evaluation stays dry-run by default; --mode retrieval runs LLM-free graph retrieval."""
 from __future__ import annotations
 
 import argparse
@@ -56,13 +56,25 @@ def metrics(records):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("questions", help="eval_questions JSON (under /tmp)")
-    parser.add_argument("--limit", type=int, default=5)
+    parser.add_argument("--mode", choices=("answer", "retrieval"), default="answer")
+    parser.add_argument("--source", choices=("csv", "db"), default="csv")
+    parser.add_argument("--seed-mode", choices=("contains", "oracle"), default="contains")
+    parser.add_argument("--hops", type=int, choices=(1, 2, 3), default=2)
+    parser.add_argument("--csv-dir", action="append", default=[])
+    parser.add_argument("--summary", default="/tmp/fp-retrieval-summary.json")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--limit", type=int, default=5)
     parser.add_argument("--output", default="/tmp/fp-chat-eval.jsonl")
     args = parser.parse_args(argv)
     qpath = Path(args.questions).expanduser().resolve()
     if Path("/tmp").resolve() not in qpath.parents or REPO_ROOT in qpath.parents:
         raise ValueError("질문 JSON은 /tmp 아래에 있어야 합니다.")
+    if args.mode == "retrieval":
+        from retrieval_eval import main as retrieval_main
+        argv = [str(qpath), "--source", args.source, "--seed-mode", args.seed_mode, "--hops", str(args.hops), "--output", args.output, "--summary", args.summary]
+        if args.execute: argv.append("--execute")
+        for folder in args.csv_dir: argv.extend(["--csv-dir", folder])
+        return retrieval_main(argv)
     payload = json.loads(qpath.read_text(encoding="utf-8"))
     questions = payload.get("questions", [])[:max(0, args.limit)]
     estimate = len(questions) * 2  # 상한 추정: 분석 호출 + 답변 생성 호출
@@ -70,7 +82,7 @@ def main(argv=None):
         print(json.dumps({"mode": "dry-run", "question_count": len(questions), "llm_call_estimate": estimate, "ids": [q.get("id") for q in questions]}, ensure_ascii=False))
         return 0
     if not os.environ.get("DB_URL") or not os.environ.get("ANTHROPIC_API_KEY"):
-        raise RuntimeError("실행에는 DB_URL과 ANTHROPIC_API_KEY 환경 변수가 필요합니다.")
+        raise RuntimeError("answer mode requires DB_URL and ANTHROPIC_API_KEY; use --mode retrieval for LLM-free evaluation.")
 
     if str(CHATBOT_DIR) not in sys.path:
         sys.path.insert(0, str(CHATBOT_DIR))

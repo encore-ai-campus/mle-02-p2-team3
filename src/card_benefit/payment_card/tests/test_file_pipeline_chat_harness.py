@@ -108,3 +108,13 @@ def test_dry_run_does_not_call_db_or_llm(tmp_path, monkeypatch, capsys):
     out=json.loads(capsys.readouterr().out)
     assert out["mode"]=="dry-run" and out["question_count"]==1 and out["llm_call_estimate"]==2
     qfile.unlink()
+
+
+def test_rank_candidates_prefers_rare_matching_words_over_name_order():
+    """흔한 단어('할인')가 많이 걸려도 드문 단어('소노')까지 맞는 이름이 이름순 잘림에 밀리지 않아야 한다."""
+    rows=[{"name":f"가{i} 할인","label":"Benefit"} for i in range(40)]
+    rows+= [{"name":"소노 청구할인","label":"Benefit"},{"name":"소노카드","label":"Card"}]
+    ranked=patch._rank_candidates(rows,["소노","할인"],limit=5)
+    assert "소노 청구할인" in ranked and "소노카드" in ranked
+    assert list(patch._rank_candidates(rows,["소노","할인"],limit=5))==list(ranked)  # 결정적
+    assert len(patch._rank_candidates(rows,["소노","할인"],limit=500))==42

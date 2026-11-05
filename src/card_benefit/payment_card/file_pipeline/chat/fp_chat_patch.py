@@ -28,6 +28,24 @@ def _load_modules():
     return db
 
 
+def _rank_candidates(rows, tokens, limit: int = 500) -> dict:
+    """일치 행을 질문 단어 일치 점수 순으로 정렬해 최대 limit 개를 돌려준다(결정적)."""
+    import math  # noqa: PLC0415
+    names: dict[str, str] = {}
+    for row in rows:
+        names.setdefault(row["name"], row["label"])
+    lowered = [token.lower() for token in tokens]
+    df = {t: sum(1 for name in names if t in name.lower()) for t in lowered}
+    priority = {"Card": 0, "Benefit": 1}
+    scored = []
+    for name, label in names.items():
+        low = name.lower()
+        score = sum(min(len(t), 6) / math.log(2 + df[t]) for t in lowered if df[t] and t in low)
+        scored.append((-score, priority.get(label, 2), name, label))
+    scored.sort()
+    return {name: {"name": name, "label": label} for _, _, name, label in scored[:limit]}
+
+
 def _make_list_entities(db, schema: str):
     def list_entities(question: str | None = None) -> list[dict]:
         q = question if question is not None else _CURRENT_QUESTION.get()
@@ -38,17 +56,14 @@ def _make_list_entities(db, schema: str):
             if len(tokens) == 12:
                 break
         patterns = [f"%{token}%" for token in tokens]
+        # 이름순 상한(300)은 흔한 단어가 많이 걸리면 정답 엔티티를 잘라 낸다(실측: 하나카드 12문항 중 3개).
+        # 일치한 행을 모두 가져와(안전 상한 5000) 파이썬에서 단어 중요도(흔한 단어는 낮게) 순으로 정렬한다.
         matched = db.run_query(
             f"select name, label from {schema}.nodes "
-            "where label <> 'Document' and name ilike any(%(patterns)s) "
-            "order by name limit 300",
+            "where label <> 'Document' and name ilike any(%(patterns)s) limit 5000",
             {"patterns": patterns},
         ) if patterns else []
-        unique: dict[str, dict] = {}
-        for row in matched:
-            unique.setdefault(row["name"], {"name": row["name"], "label": row["label"]})
-            if len(unique) >= 500:
-                break
+        unique = _rank_candidates(matched, tokens)
         remaining = max(0, 500 - len(unique))
         if remaining:
             supplemental = db.run_query(

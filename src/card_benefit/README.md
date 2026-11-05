@@ -18,7 +18,7 @@ PDF 파싱, 정규식·LLM 추출, 정제·검증, Neo4j·GraphRAG는 **아직 �
 card_benefit/                     프로젝트 루트 (실행 위치)
 ├── payment_card/                 Python 패키지
 │   ├── main.py · models.py · repository.py · payment_card.sql   공통 모델·등록·조회·SQL (공동)
-│   ├── file_pipeline/            파일 기반 파싱·LLM 추출·검증 (이현근, 미구현)
+│   ├── file_pipeline/            파일 기반 분류·원문 추적(구현), 청킹·LLM 추출·검증(예정) (이현근) — 지도: file_pipeline/README.md
 │   ├── db_pipeline/              PostgreSQL 기반 저장·AI 추출·검증 (김병주, 미구현)
 │   └── tests/
 ├── sql/schema.sql                DDL (수동 실행 전용)

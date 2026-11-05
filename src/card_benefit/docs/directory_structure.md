@@ -23,7 +23,7 @@ src/card_benefit/                     프로젝트 루트 = 실행 위치, impor
     ├── repository.py                 ✅ 공통: 카드 등록·조회 (CardRepository)
     ├── payment_card.sql              ✅ 공통: Named SQL Mapper
     ├── file_pipeline/
-    │   └── README.md                 ⏳ 이현근: 파일 기반 파싱·LLM 추출·검증 (Python 파일 없음, __init__.py 없음)
+    │   └── README.md                 ✅ 이현근: 분류 인덱스(doc_index)와 원문 추적(traceability) 구현, 청킹·LLM 추출·검증은 예정 (폴더 구성은 이 README 참고)
     ├── db_pipeline/
     │   └── README.md                 ⏳ 김병주: PostgreSQL 기반 저장·AI 추출·검증 (Python 파일 없음, __init__.py 없음)
     └── tests/
@@ -36,7 +36,7 @@ src/card_benefit/                     프로젝트 루트 = 실행 위치, impor
 |---|---|---|
 | `card_benefit/` | 프로젝트 루트. CLI·테스트를 이 폴더에서 실행해 `payment_card` 를 import한다 | ✅ |
 | `payment_card/` | Python 업무 소스. 최상위 파일은 두 방식이 함께 쓰는 공통 영역(모델·계약·등록·조회·SQL·진입점, 공동 관리) | ✅ |
-| `payment_card/file_pipeline/` | **이현근 방식**: 문서 파일을 Python으로 읽어 전처리·정규식·LLM 추출·Python 검증까지 수행 | ⏳ README만 |
+| `payment_card/file_pipeline/` | **이현근 방식**: 문서 파일을 Python으로 읽어 전처리·정규식·LLM 추출·Python 검증까지 수행 | 🔶 분류 인덱스·원문 추적까지 구현 |
 | `payment_card/db_pipeline/` | **김병주 방식**: 원본을 PostgreSQL에 저장하고 SQL 전처리·DB 데이터 기반 AI 추출·SQL 검증까지 수행 | ⏳ README만 |
 | `payment_card/tests/` | 단위 테스트 (`unittest`) | ✅ |
 | `sql/` | 테이블 생성·변경 DDL. 애플리케이션이 자동 실행하지 않음 | ✅ |

@@ -89,3 +89,18 @@ def test_real_tesseract_on_synthetic_pdf(tmp_path):
     result = ocr_pages.create_ocr_trace(pdf)
     assert result["pages"][0]["quality"]["word_count"] >= 3
 
+
+
+def test_tsv_with_quote_characters_does_not_swallow_following_rows():
+    """OCR 이 '"' 글자를 인식해도(따옴표 규칙 없음) 뒤의 행이 한 칸으로 합쳐져 쪽 텍스트에 좌표가 섞이면 안 된다(실제 발생한 버그)."""
+    header = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+    rows = (
+        "5\t1\t1\t1\t1\t1\t0\t0\t5\t5\t90\t\"혜택\n"      # 닫히지 않은 따옴표로 시작하는 단어
+        "5\t1\t1\t1\t1\t2\t6\t0\t5\t5\t88\t연회비\n"
+        "5\t1\t1\t1\t1\t3\t12\t0\t5\t5\t87\t\"\n"            # 따옴표 한 글자
+        "5\t1\t1\t1\t1\t4\t18\t0\t5\t5\t86\t10,000원\n"
+    )
+    words = ocr_pages.parse_tsv(header + rows)
+    assert [w["text"] for w in words] == ['"혜택', "연회비", '"', "10,000원"]
+    text = " ".join(w["text"] for w in words)
+    assert "\t" not in text and len(text) < 40

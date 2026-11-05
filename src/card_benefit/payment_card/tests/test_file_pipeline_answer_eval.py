@@ -11,15 +11,16 @@ CHAT = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat"
 
 @pytest.fixture(autouse=True)
 def _restore_chatbot_modules():
-    """이 파일의 테스트가 sys.modules 에 남기는 db/rag/llm 을 원상 복구해 다른 테스트(예: seed_matcher 의 미임포트 확인)로 새지 않게 한다."""
     names = ("db", "rag", "llm")
     before = {name: sys.modules.get(name) for name in names}
     yield
-    for name, module in before.items():
+    for name in names:
+        module = before[name]
         if module is None:
             sys.modules.pop(name, None)
         else:
             sys.modules[name] = module
+
 
 def load(name):
     spec = importlib.util.spec_from_file_location(f"answer_eval_test_{name}", CHAT / f"{name}.py")
@@ -156,3 +157,47 @@ def test_execute_with_fake_chatbot_db_and_openai_modules(tmp_path, monkeypatch, 
     qfile.unlink(missing_ok=True)
     output.unlink(missing_ok=True)
     summary.unlink(missing_ok=True)
+
+
+def test_answer_value_match_rules():
+    answer_eval = load("answer_eval")
+    for expected, answer, kind in [("300000", "30만원", "number_unitless"), ("300000", "30만 원", "number_unitless"), ("1000000", "1,000,000원", "number_unitless"), ("30000", "3만 점", "number_unitless"), ("100000", "10만점", "number_unitless"), ("1000", "1천 원", "number_unitless"), ("3", "3회", "number_unitless")]:
+        matched, actual_kind, _ = answer_eval._value_match(answer, expected, "benefit_limit")
+        assert matched and actual_kind == kind, (expected, answer, actual_kind)
+    assert not answer_eval._value_match("3%", "3회")[0]
+    assert not answer_eval._value_match("2026년 10월 31일", "31일")[0]
+    assert not answer_eval._value_match("hash 017b032712345678", "12345678")[0]
+    assert answer_eval._value_match("문서 017b0327", "017b0327")[1] == "hash"
+    assert answer_eval._value_match("카타르항공 최대 15% 할인", "카타르항공 할인")[1] == "name_partial"
+    assert not answer_eval._value_match("네이버페이만", "네이버페이 혜택")[0]
+    assert answer_eval._value_match("주차 비용 안내", "주차 비용")[1] == "exact"
+    assert answer_eval._value_match("주차비용 안내", "주차 비용")[1] == "exact_normalized"
+    # Conversions: Korean large units, punctuation separators, and equivalent units.
+    for expected, answer in [("100000000", "1억원"), ("12000", "1.2만원"), ("2000", "2천원"), ("20000", "2 만원"), ("3000", "3,000원"), ("3", "3회"), ("15", "15%"), ("3500", "3.5천원")]:
+        assert answer_eval._value_match(answer, expected, "benefit_limit")[0], (expected, answer)
+    assert not answer_eval._value_match("3%", "3회", "benefit_limit")[0]
+    assert not answer_eval._value_match("2026년 10월 31일", "10", "benefit_limit")[0]
+    assert not answer_eval._value_match("2026년 10월 31일", "31", "benefit_limit")[0]
+    assert not answer_eval._value_match("문서 017b032712345678", "12345678")[0]
+    assert answer_eval._value_match("문서 017b032712345678", "017b0327deadbeef")[1] == "hash"
+    assert answer_eval._value_match("카타르항공 최대 고객 프리미엄", "카타르항공 최대 고객 프리미엄 제공")[1] == "name_partial"
+    assert not answer_eval._value_match("네이버페이만", "네이버페이 혜택")[0]
+
+
+def test_judgement_preserves_strict_and_new_counts():
+    answer_eval = load("answer_eval")
+    row = answer_eval.judge_answer({"type": "benefit_condition", "expected": ["500000"]}, {"answer": "전월 실적 50만원 이상", "subgraph": {"nodes": []}}, [])
+    assert row["expected_values_in_answer"] == 1
+    assert row["expected_values_in_answer_strict"] == 0
+    assert row["value_matches"][0]["match_kind"] == "number_unitless"
+
+
+def test_rejudge_rejects_repository_output(tmp_path):
+    answer_eval = load("answer_eval")
+    q = Path("/tmp/fp-rejudge-synthetic-questions.json")
+    q.write_text(json.dumps({"questions": []}))
+    try:
+        with pytest.raises(ValueError, match="출력은 저장소 밖"):
+            answer_eval.rejudge_files("/tmp/no-such-results", q, Path(__file__))
+    finally:
+        q.unlink(missing_ok=True)

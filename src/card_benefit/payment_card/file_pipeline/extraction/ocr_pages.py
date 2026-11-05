@@ -25,7 +25,8 @@ NUMBER_PATTERN = re.compile(r"(?<![\w])\d[\d,]*(?:\.\d+)?\s*(?:천원|만원|억
 
 
 def parse_tsv(tsv: str) -> list[dict]:
-    rows = csv.DictReader(tsv.splitlines(), delimiter="\t")
+    # tesseract TSV 는 따옴표 규칙이 없다. 기본 quotechar 를 쓰면 인식된 '"' 글자 뒤의 행들이 한 칸으로 합쳐져 쪽 텍스트가 부풀고 좌표가 숫자로 섞인다.
+    rows = csv.DictReader(tsv.splitlines(), delimiter="\t", quoting=csv.QUOTE_NONE)
     words = []
     for row in rows:
         text = (row.get("text") or "").strip()

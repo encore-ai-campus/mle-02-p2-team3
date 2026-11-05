@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import time
+import re
 
 ROOT = Path(__file__).resolve().parents[5]
 
@@ -24,6 +25,90 @@ def _answer_has(answer, expected):
     return _norm(expected) in _norm(answer)
 
 
+_NUM_RE = re.compile(r"(?<![\w])\d[\d,]*(?:\.\d+)?\s*(?:억|만|천)?\s*(?:원|점|회|%|개월|일)?(?![\w])")
+_GENERIC = {"의", "을", "를", "이", "가", "은", "는", "에", "와", "과", "및", "등", "할인", "혜택"}
+_UNITS = ("개월", "원", "점", "회", "%", "일")
+
+
+def _number_candidates(text):
+    # Exclude date-shaped spans; retain their year/month/day from becoming matches.
+    dates = list(re.finditer(r"\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일", text))
+    date_ranges = [(m.start(), m.end()) for m in dates]
+    out = []
+    for match in _NUM_RE.finditer(text):
+        if any(a <= match.start() < b for a, b in date_ranges):
+            continue
+        raw = match.group(0).replace(" ", "").replace(",", "")
+        m = re.fullmatch(r"(\d+(?:\.\d+)?)(억|만|천)?(원|점|회|%|개월|일)?", raw)
+        if not m:
+            continue
+        value = float(m.group(1)) * {None: 1, "천": 1_000, "만": 10_000, "억": 100_000_000}[m.group(2)]
+        out.append((value, m.group(3), match.start(), match.end()))
+    return out
+
+
+def _name_norm(text):
+    return "".join(ch for ch in str(text).casefold() if ch.isalnum())
+
+
+def _tokens(text):
+    return [t.casefold() for t in re.findall(r"[가-힣A-Za-z0-9]+", text) if t.casefold() not in _GENERIC]
+
+
+def _span(answer, start, end):
+    left, right = max(0, start - 15), min(len(answer), end + 15)
+    return answer[left:right][:40]
+
+
+def _value_match(answer, expected, question_type=""):
+    val = str(expected)
+    date_matches = list(re.finditer(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일", answer))
+    if date_matches and (re.fullmatch(r"\d{1,2}\s*(?:년|월|일)", val) or (val.isdigit() and any(val in m.groups() for m in date_matches))):
+        return False, None, None
+    # Hash/document identifiers are alphanumeric and must match as a token.
+    if re.fullmatch(r"\d{8,}", val) and re.search(r"(?<![\w])[0-9a-fA-F]{8,}(?![\w])", answer) and re.search(r"[a-fA-F]", answer):
+        return False, None, None
+    if re.fullmatch(r"[0-9a-fA-F]{8,}", val) and re.search(r"[a-fA-F]", val):
+        m = re.search(rf"(?<![\w]){re.escape(val[:8])}[0-9a-fA-F]*(?![\w])", answer, re.I)
+        return (True, "hash", _span(answer, m.start(), m.end())) if m else (False, None, None)
+    literal = val in answer
+    old = _answer_has(answer, val)
+    if literal and not re.search(r"\d", val):
+        at = answer.find(val)
+        return True, "exact", _span(answer, at, at + len(val))
+    if re.search(r"\d", val):
+        want = _number_candidates(val)
+        got = _number_candidates(answer)
+        if want:
+            wv, wu, _, _ = want[0]
+            for av, au, a, b in got:
+                if abs(wv - av) < 1e-8 and wu and au == wu:
+                    return True, "number_unit", _span(answer, a, b)
+                if abs(wv - av) < 1e-8 and not wu and (not au or question_type in {"benefit_limit", "benefit_condition"}):
+                    return True, "number_unitless", _span(answer, a, b)
+            # Preserve strict digit matching only when no conflicting unit follows it.
+            if old and not any(a <= (m.start() + len(val)) < b and unit for _, unit, a, b in got for m in [re.search(re.escape(val), answer)] if m):
+                at = _norm(answer).find(_norm(val))
+                return True, "exact", _span(answer, max(0, at), max(0, at) + len(val))
+    elif old:
+        at = _norm(answer).find(_norm(val))
+        return True, "exact_normalized", _span(answer, max(0, at), max(0, at) + len(val))
+    normalized = _name_norm(val)
+    ansnorm = _name_norm(answer)
+    if normalized and not re.search(r"\d", val) and normalized in ansnorm:
+        # locate approximate normalized hit for evidence
+        return True, "exact_normalized", answer[:40]
+    expected_tokens = _tokens(val)
+    original_tokens = re.findall(r"[가-힣A-Za-z0-9]+", val)
+    if (len(expected_tokens) <= 1 and len(original_tokens) <= 1) or len(normalized) < 4:
+        return False, None, None
+    answer_tokens = set(_tokens(answer))
+    hit = [token for token in expected_tokens if token in answer_tokens]
+    if hit and len(hit) / len(expected_tokens) >= .8:
+        return True, "name_partial", " ".join(hit)[:40]
+    return False, None, None
+
+
 def _refusal(answer):
     return any(pattern in answer for pattern in ("모르겠", "모릅니다", "알 수 없", "찾지 못", "찾을 수 없", "정보가 없", "없습니다", "없음", "없다", "확인할 수 없"))
 
@@ -38,13 +123,18 @@ def judge_answer(question, result, selected_names):
     nodes = sub.get("nodes", [])
     haystack = " ".join(str(node.get("name", "")) + " " + " ".join(map(str, (node.get("props") or {}).values())) for node in nodes)
     search_expected = [value for value in expected if _answer_has(haystack, value)]
-    included = sum(_answer_has(answer, value) for value in expected)
+    matches = []
+    for value in expected:
+        matched, kind, evidence = _value_match(answer, value, question.get("type", ""))
+        matches.append({"value": value, "matched": matched, "match_kind": kind, "evidence_span": evidence})
+    strict_included = sum(_answer_has(answer, value) for value in expected)
+    included = sum(item["matched"] for item in matches)
     seed_hit = bool(expected_seeds & selected) if expected_seeds else None
     if no_answer:
         classification = "no_answer_refused" if _refusal(answer) else "no_answer_answered"
     elif not nodes or (expected and not search_expected):
         classification = "search_miss"
-    elif any(_answer_has(haystack, value) and not _answer_has(answer, value) for value in expected):
+    elif any(_answer_has(haystack, value) and not _value_match(answer, value, question.get("type", ""))[0] for value in expected):
         classification = "search_hit_answer_miss"
     else:
         classification = "search_hit_answer_hit" if nodes else "search_miss"
@@ -52,6 +142,8 @@ def judge_answer(question, result, selected_names):
         "seed_hit": seed_hit,
         "expected_values": len(expected),
         "expected_values_in_answer": included,
+        "expected_values_in_answer_strict": strict_included,
+        "value_matches": matches,
         "expected_value_inclusion_rate": included / len(expected) if expected else None,
         "source_displayed": bool(result.get("sources")),
         "refusal": _refusal(answer),
@@ -66,6 +158,36 @@ def _load_questions(path, limit):
     payload = json.loads(Path(path).expanduser().resolve().read_text(encoding="utf-8"))
     questions = payload.get("questions", [])
     return questions[:max(0, limit)]
+
+
+def rejudge_files(results_path, questions_path, output_path):
+    qpath = Path(questions_path).expanduser().resolve()
+    out = safe_tmp(output_path)
+    if Path("/tmp").resolve() not in qpath.parents or ROOT in qpath.parents:
+        raise ValueError("질문 JSON은 /tmp 아래에 있어야 합니다.")
+    questions = json.loads(qpath.read_text(encoding="utf-8")).get("questions", [])
+    qmap = {str(q.get("id")): q for q in questions}
+    records = [json.loads(line) for line in Path(results_path).expanduser().resolve().read_text(encoding="utf-8").splitlines() if line.strip()]
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as stream:
+        for record in records:
+            question = qmap.get(str(record.get("id")), record.get("question", {}))
+            judgement = judge_answer(question, {"answer": record.get("answer", ""), "sources": [None] * record.get("source_count", 0), "subgraph": {"nodes": []}}, record.get("selected_seed_names", []))
+            record.update(judgement)
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+    return records
+
+
+def _judge_cli():
+    import argparse
+    parser = argparse.ArgumentParser(description="Rejudge saved fp_chat answer results without DB or LLM")
+    parser.add_argument("--results", required=True)
+    parser.add_argument("--questions", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    records = rejudge_files(args.results, args.questions, args.output)
+    print(f"재채점 문항: {len(records)}; 출력: {safe_tmp(args.output)}")
+    return 0
 
 
 def _redact_secret(value):
@@ -190,10 +312,16 @@ def run(args):
     aggregate['no_answer_refusal_rate'] = no_answer_refused / no_answer_total if no_answer_total else None
     payload = {"overall": aggregate, "by_type": by_type}
     summary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print("유형\t문항\t시드 적중\t정답 포함\t출처\t거절\t정답없음 거절률\t검색 성공·답변 실패\t검색 실패\t오류")
+    print("유형\t문항\t시드 적중\t정답 포함\t엄격 규칙\t출처\t거절\t정답없음 거절률\t검색 성공·답변 실패\t검색 실패\t오류")
     for kind, row in sorted(by_type.items()):
         refusal_rate = f"{row['no_answer_refusals']}/{row['no_answer_questions']}" if row['no_answer_questions'] else "-"
-        print(f"{kind}\t{row['questions']}\t{row['seed_hits']}/{row['seed_expected']}\t{row['expected_included']}/{row['expected_total']}\t{row['sources']}\t{row['refusals']}\t{refusal_rate}\t{row.get('search_hit_answer_miss',0)}\t{row.get('search_miss',0)}\t{row['errors']}")
+        strict = sum(r.get("expected_values_in_answer_strict", 0) for r in records if r.get("type") == kind and r.get("status") == "ok")
+        total = sum(r.get("expected_values", 0) for r in records if r.get("type") == kind and r.get("status") == "ok")
+        print(f"{kind}\t{row['questions']}\t{row['seed_hits']}/{row['seed_expected']}\t{row['expected_included']}/{row['expected_total']}\t{strict}/{total}\t{row['sources']}\t{row['refusals']}\t{refusal_rate}\t{row.get('search_hit_answer_miss',0)}\t{row.get('search_miss',0)}\t{row['errors']}")
     print(f"전체\t{aggregate['questions']}\t토큰 {totals['prompt_tokens'] + totals['completion_tokens']}\t비용 ${totals['cost_usd']:.8f}")
     print(json.dumps({"output": str(out), "summary": str(summary), "totals": aggregate}, ensure_ascii=False))
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_judge_cli())

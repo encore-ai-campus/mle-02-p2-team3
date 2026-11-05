@@ -9,6 +9,19 @@ import pytest
 CHAT = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat"
 
 
+@pytest.fixture(autouse=True)
+def _restore_chatbot_modules():
+    names = ("db", "rag", "llm")
+    before = {name: sys.modules.get(name) for name in names}
+    yield
+    for name in names:
+        module = before[name]
+        if module is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = module
+
+
 def load(name):
     chat_dir = str(CHAT)
     if chat_dir not in sys.path:

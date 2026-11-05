@@ -20,6 +20,8 @@ at.run()
 print("EXC", len(at.exception))
 print("ERR", [e.value for e in at.error])
 print("INFO", [i.value for i in at.info])
+import os
+print("DBURL_SET", bool(os.environ.get("DB_URL")))
 """
 
 
@@ -52,6 +54,18 @@ class RunEntryTest(unittest.TestCase):
             out = _run({"FP_CHAT_ENV_FILE": str(envf)})
         self.assertIn("EXC 0", out)
         self.assertIn("우리 카드 데이터(fp_chat) 모드", out)
+
+    def test_fp_database_url_fills_db_url_when_missing(self):
+        out = _run({"OPENAI_API_KEY": "dummy-no-call", "FP_DATABASE_URL": "postgresql://dummy"})
+        self.assertIn("DBURL_SET True", out)
+
+    def test_db_uri_fills_db_url_when_only_it_exists(self):
+        out = _run({"OPENAI_API_KEY": "dummy-no-call", "DB_URI": "postgresql://dummy"})
+        self.assertIn("DBURL_SET True", out)
+
+    def test_db_url_stays_unset_without_either(self):
+        out = _run({"OPENAI_API_KEY": "dummy-no-call"})
+        self.assertIn("DBURL_SET False", out)
 
     def test_exported_value_wins_over_dotenv(self):
         with tempfile.TemporaryDirectory() as d:

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from pathlib import Path
+import os
 import re
 import sys
+import time
 
 try:
     from .db_pool import PoolQueryRunner
@@ -16,9 +18,13 @@ _CURRENT_QUESTION: ContextVar[str] = ContextVar("fp_chat_question", default="")
 _ORIGINAL_ANSWER = None
 _ORIGINAL_LIST_ENTITIES = None
 _ORIGINAL_ANALYZE = None
+_ORIGINAL_EXPLORE = None
+_ORIGINAL_GENERATE_STREAM = None
+_ORIGINAL_ANSWER_SYSTEM = None
 _ORIGINAL_RUN_QUERY = None
 _POOL_RUN_QUERY = None
 _PATCHED_DB = None
+_ANSWER_CAPTURE: ContextVar[dict | None] = ContextVar("fp_chat_answer_capture", default=None)
 
 
 def _load_modules():
@@ -93,6 +99,7 @@ def apply(schema: str = "fp_chat"):
     if not isinstance(schema, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema):
         raise ValueError("schema must match [A-Za-z_][A-Za-z0-9_]*")
     global _ORIGINAL_ANSWER, _ORIGINAL_LIST_ENTITIES, _ORIGINAL_ANALYZE
+    global _ORIGINAL_EXPLORE, _ORIGINAL_GENERATE_STREAM, _ORIGINAL_ANSWER_SYSTEM
     global _ORIGINAL_RUN_QUERY, _POOL_RUN_QUERY, _PATCHED_DB
     db = _load_modules()
     if _ORIGINAL_RUN_QUERY is None:
@@ -114,15 +121,104 @@ def apply(schema: str = "fp_chat"):
         _ORIGINAL_ANSWER = rag.answer
         _ORIGINAL_LIST_ENTITIES = getattr(rag, "list_entities", None)
         _ORIGINAL_ANALYZE = getattr(rag, "analyze", None)
+        _ORIGINAL_EXPLORE = getattr(rag, "explore", None)
+        _ORIGINAL_GENERATE_STREAM = getattr(rag, "generate_stream", None)
+    if _ORIGINAL_ANSWER_SYSTEM is None:
+        _ORIGINAL_ANSWER_SYSTEM = getattr(rag, "ANSWER_SYSTEM", "")
+    try:
+        from .answer_format import ANSWER_SYSTEM_V2
+    except ImportError:
+        from answer_format import ANSWER_SYSTEM_V2
+    legacy = os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "legacy"
+    rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM if legacy else ANSWER_SYSTEM_V2
     rag.list_entities = _make_list_entities(db, schema)
     original_answer = _ORIGINAL_ANSWER
     original_analyze = _ORIGINAL_ANALYZE
+    original_explore = _ORIGINAL_EXPLORE
+    original_generate_stream = _ORIGINAL_GENERATE_STREAM
+
+    def list_entities(question: str | None = None):
+        capture = _ANSWER_CAPTURE.get()
+        started = time.perf_counter()
+        try:
+            return _make_list_entities(db, schema)(question)
+        finally:
+            if capture is not None:
+                capture["latency_ms"]["entities_db"] = (time.perf_counter() - started) * 1000
+
+    rag.list_entities = list_entities
 
     def answer(question: str, history=None):
         token = _CURRENT_QUESTION.set(question)
+        if not os.environ.get("FP_QA_LOG"):
+            try:
+                return original_answer(question, history)
+            finally:
+                _CURRENT_QUESTION.reset(token)
+        capture = {"latency_ms": {}, "selected_entities": []}
+        capture_token = _ANSWER_CAPTURE.set(capture)
+        usage_module = sys.modules.get("llm")
+        usage_before = None
         try:
-            return original_answer(question, history)
+            if usage_module is not None and callable(getattr(usage_module, "usage_totals", None)):
+                usage_before = usage_module.usage_totals()
+        except Exception:
+            usage_before = None
+        started = time.perf_counter()
+        try:
+            result = original_answer(question, history)
+            if not isinstance(result, dict):
+                return result
+            result["selected_entities"] = list(capture["selected_entities"])
+            try:
+                from . import answer_eval, qa_log
+            except ImportError:
+                import answer_eval
+                import qa_log
+            stages = capture["latency_ms"]
+            stages["total"] = (time.perf_counter() - started) * 1000
+            usage_after = None
+            try:
+                if usage_module is not None and callable(getattr(usage_module, "usage_totals", None)):
+                    usage_after = usage_module.usage_totals()
+            except Exception:
+                usage_after = None
+            usage = None
+            if usage_after is not None:
+                usage = {key: max(0, usage_after.get(key, 0) - (usage_before or {}).get(key, 0))
+                         for key in ("prompt_tokens", "completion_tokens", "cost_usd")}
+            subgraph = result.get("subgraph") or {}
+            refs, evidence_error = [], None
+            fp_ids = [str(n.get("props", {}).get("fp_id")) for n in subgraph.get("nodes", [])
+                      if n.get("props", {}).get("fp_id") and not str(n["props"]["fp_id"]).startswith("doc:")]
+            try:
+                # 문서 전체 근거를 끌어오지 않는다: 검색된 노드에 직접 붙은 근거와,
+                # 양 끝 노드가 모두 검색된 엣지의 근거만 출처로 기록한다.
+                refs = db.run_query(
+                    "select distinct e.node_id, e.edge_id, e.doc_sha256, e.page_no, e.start_pos, e.end_pos, e.quote_status "
+                    "from public.fp_evidence e left join public.fp_edges edge on edge.id = e.edge_id "
+                    "where e.node_id = any(%(node_ids)s) "
+                    "or (edge.source_id = any(%(node_ids)s) and edge.target_id = any(%(node_ids)s)) "
+                    "order by e.doc_sha256, e.page_no, e.start_pos limit 1000",
+                    {"node_ids": fp_ids},
+                )
+            except Exception:
+                refs, evidence_error = [], "source_refs_query_error"
+            try:
+                record = qa_log.build_record(
+                    question=question, answer=result.get("answer", ""), result=result,
+                    model=getattr(usage_module, "MODEL", None), usage=usage,
+                    latency_ms=stages, answer_format_version="legacy" if legacy else "v2",
+                    graph_schema=schema, source_refs=refs, evidence_error=evidence_error,
+                    app_version=os.environ.get("GIT_COMMIT") or os.environ.get("GITHUB_SHA"),
+                )
+                record["refusal"] = answer_eval._refusal(str(result.get("answer", "")))
+                qa_log.write_record(record)
+            except Exception:
+                print("FP_QA_LOG_ERROR:record_error", file=sys.stderr)
+            return result
         finally:
+            _ANSWER_CAPTURE.reset(capture_token)
             _CURRENT_QUESTION.reset(token)
 
     rag.answer = answer
@@ -131,13 +227,49 @@ def apply(schema: str = "fp_chat"):
             # app.py calls analyze(question, list_entities()) directly; retrieve keyword candidates there too.
             if not _CURRENT_QUESTION.get():
                 entities = rag.list_entities(question)
-            return original_analyze(question, entities)
+            capture = _ANSWER_CAPTURE.get()
+            started = time.perf_counter()
+            value = original_analyze(question, entities)
+            if capture is not None:
+                capture["latency_ms"]["analyze_llm"] = (time.perf_counter() - started) * 1000
+                capture["selected_entities"] = list(getattr(value, "entities", []) or [])
+            return value
         rag.analyze = analyze
+
+    def explore(analysis):
+        capture = _ANSWER_CAPTURE.get()
+        started = time.perf_counter()
+        try:
+            return original_explore(analysis)
+        finally:
+            if capture is not None:
+                capture["latency_ms"]["explore_db"] = (time.perf_counter() - started) * 1000
+
+    def generate_stream(question, sub, history=None):
+        capture = _ANSWER_CAPTURE.get()
+        started = time.perf_counter()
+        first = None
+        try:
+            for chunk in original_generate_stream(question, sub, history):
+                if first is None:
+                    first = time.perf_counter()
+                    if capture is not None:
+                        capture["latency_ms"]["first_token"] = (first - started) * 1000
+                yield chunk
+        finally:
+            if capture is not None and first is None:
+                capture["latency_ms"]["first_token"] = None
+
+    rag.explore = explore
+    rag.generate_stream = generate_stream
     return rag
 
 
 def restore():
-    """Restore the team DB query function after an opt-in patch."""
+    """Restore the team DB query function and the original answer prompt."""
     global _PATCHED_DB
     if _PATCHED_DB is not None and _ORIGINAL_RUN_QUERY is not None:
         _PATCHED_DB.run_query = _ORIGINAL_RUN_QUERY
+    rag = sys.modules.get("rag")
+    if rag is not None and _ORIGINAL_ANSWER_SYSTEM is not None:
+        rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM

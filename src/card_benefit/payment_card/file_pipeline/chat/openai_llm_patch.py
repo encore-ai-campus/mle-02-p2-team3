@@ -15,10 +15,10 @@ def apply(model=None, client=None):
         client=OpenAI(api_key=key)
     if _ORIGINALS is None: _ORIGINALS=(llm.complete,llm.stream)
     def complete(system,user,max_tokens=400):
-        result=client.chat.completions.create(model=selected,max_tokens=max_tokens,messages=[{'role':'system','content':system},{'role':'user','content':user}])
+        result=client.chat.completions.create(model=selected,max_completion_tokens=max_tokens,messages=[{'role':'system','content':system},{'role':'user','content':user}])
         return result.choices[0].message.content or ''
     def stream(system,messages,max_tokens=800):
-        result=client.chat.completions.create(model=selected,max_tokens=max_tokens,messages=[{'role':'system','content':system},*messages],stream=True)
+        result=client.chat.completions.create(model=selected,max_completion_tokens=max_tokens,messages=[{'role':'system','content':system},*messages],stream=True)
         for event in result:
             delta=event.choices[0].delta.content
             if delta: yield delta

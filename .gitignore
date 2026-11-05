@@ -42,3 +42,5 @@ Thumbs.db
 /src/data/hana_all/
 /src/data/woori_all/
 /src/card_benefit/data/raw/
+# Generated chunk JSON contains extracted source text; keep it local.
+/src/card_benefit/data/chunks/

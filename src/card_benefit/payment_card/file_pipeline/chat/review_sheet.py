@@ -111,6 +111,9 @@ def make_sheet(results_path,questions_path,csv_dirs,documents,output,*,with_exce
  return out,csvout,cards
 
 def main(argv=None):
- p=argparse.ArgumentParser();p.add_argument('--results',required=True);p.add_argument('--questions',required=True);p.add_argument('--csv-dir',action='append',required=True);p.add_argument('--documents',action='append',required=True);p.add_argument('--output',required=True);p.add_argument('--with-excerpt',action='store_true');p.add_argument('--max-evidence',type=int,default=12);a=p.parse_args(argv)
+ p=argparse.ArgumentParser();p.add_argument('--results',required=True);p.add_argument('--questions',required=True);p.add_argument('--csv-dir',action='append',required=True);p.add_argument('--documents',action='append',required=True);p.add_argument('--output',required=True);p.add_argument('--with-excerpt',action='store_true');p.add_argument('--max-evidence',type=int,default=12);p.add_argument('--focus',action='store_true',help='정답 문장이 든 근거를 위로, 줄 번호·형광·그래프 경로를 붙인 집중 보기 HTML만 만든다');a=p.parse_args(argv)
+ if a.focus:
+  from .review_focus import make_focus_sheet
+  h=make_focus_sheet(a.results,a.questions,a.csv_dir,a.documents,a.output);print(json.dumps({'html':str(h)},ensure_ascii=False));return 0
  h,c,_=make_sheet(a.results,a.questions,a.csv_dir,a.documents,a.output,with_excerpt=a.with_excerpt,limit=a.max_evidence);print(json.dumps({'html':str(h),'csv':str(c)},ensure_ascii=False));return 0
 if __name__=='__main__':raise SystemExit(main())

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from payment_card.file_pipeline.extraction.item_loss_report import build_report
+from payment_card.file_pipeline.extraction.report.item_loss_report import build_report
 
 
 def _row(chunk_id, benefits=None, conditions=None, limits=None, targets=None, relations=None):

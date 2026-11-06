@@ -8,9 +8,9 @@ import statistics
 from pathlib import Path
 from typing import Any
 
-from .eval_runs import load_run
-from .verify import _item_values, _numbers, _shared_keyword_flags
-from .variance import GROUPS
+from ..eval.eval_runs import load_run
+from ..verify import _item_values, _numbers, _shared_keyword_flags
+from ..eval.variance import GROUPS
 
 
 def density_score(text: str) -> float:
@@ -105,7 +105,7 @@ def main() -> None:
         runs[label] = load_run(directory)
     report = build_report(args.chunk_dir, runs)
     path = Path(args.output).expanduser().resolve()
-    repo_root = Path(__file__).resolve().parents[5]
+    repo_root = Path(__file__).resolve().parents[6]
     if path == repo_root or repo_root in path.parents:
         parser.error("출력 JSON은 저장소 밖이어야 합니다")
     path.parent.mkdir(parents=True, exist_ok=True)

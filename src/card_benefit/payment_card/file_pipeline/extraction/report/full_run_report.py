@@ -9,17 +9,17 @@ import re
 import tempfile
 
 from .ambiguity_report import ambiguity_report
-from .diagnose import diagnose_empty_results
-from .empty_review import _empty
-from .eval_runs import load_run
+from ..diagnose import diagnose_empty_results
+from ..review.empty_review import _empty
+from ..eval.eval_runs import load_run
 from .table_density_report import build_report as build_density_report
-from .verify import verify_results
+from ..verify import verify_results
 
 GROUPS = ("benefits", "conditions", "limits", "targets", "relations")
 ENTITY_GROUPS = GROUPS[:-1]
 LENGTH_BUCKETS = (("<=499", 0, 499), ("500-999", 500, 999), ("1000-1999", 1000, 1999),
                   ("2000-3999", 2000, 3999), (">=4000", 4000, None))
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 
 
 def _load_chunks(directory: Path) -> dict[str, dict]:

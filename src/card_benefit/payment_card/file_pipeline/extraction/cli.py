@@ -14,7 +14,7 @@ from .pilot import estimate_prompt_size, select_pilot_chunks
 from .verify import verify_results
 from .locate_diagnose import diagnose_locations, TYPES
 from .relocate import relocate_results
-from .variance import compare_variance
+from .eval.variance import compare_variance
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 

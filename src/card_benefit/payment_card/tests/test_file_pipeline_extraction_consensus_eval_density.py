@@ -1,8 +1,8 @@
 import json
 
-from payment_card.file_pipeline.extraction.consensus import build_consensus, _without_locations
-from payment_card.file_pipeline.extraction.eval_runs import compare_groups, run_metrics, summarize_group, within_range
-from payment_card.file_pipeline.extraction.table_density_report import classify_density
+from payment_card.file_pipeline.extraction.eval.consensus import build_consensus, _without_locations
+from payment_card.file_pipeline.extraction.eval.eval_runs import compare_groups, run_metrics, summarize_group, within_range
+from payment_card.file_pipeline.extraction.report.table_density_report import classify_density
 from payment_card.file_pipeline.extraction.schema import Extraction
 
 

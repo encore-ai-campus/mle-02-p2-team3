@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from payment_card.file_pipeline.extraction.ambiguity_report import ambiguity_report
+from payment_card.file_pipeline.extraction.report.ambiguity_report import ambiguity_report
 
 
 def test_ambiguity_report_counts_metadata_and_omits_quote_text(tmp_path):

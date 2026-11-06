@@ -1,6 +1,6 @@
 # chat/answer/
 
-챗봇 답변을 만들고 점검하는 기능이다. `fp_chat_patch.py`, `qa_log.py`, `app_v2.py` 와 평가 도구(`eval/`)가 이 모듈들을 불러 쓴다.
+챗봇 답변을 만들고 점검하는 기능이다. `fp_chat_patch.py`, `qa_log.py`, `ui/app_v2.py` 와 평가 도구(`eval/`)가 이 모듈들을 불러 쓴다.
 
 | 파일 | 역할 |
 |---|---|

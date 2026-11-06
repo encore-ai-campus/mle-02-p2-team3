@@ -37,9 +37,9 @@ def _annotate_source_labels(db, subgraph: dict) -> dict:
     """Enrich retrieved Benefit nodes from one evidence lookup; fail open."""
     try:
         try:
-            from .source_label import annotate_subgraph, load_document_labels
+            from .retrieval.source_label import annotate_subgraph, load_document_labels
         except ImportError:
-            from source_label import annotate_subgraph, load_document_labels
+            from retrieval.source_label import annotate_subgraph, load_document_labels
         nodes = (subgraph or {}).get("nodes") or []
         ids = list(dict.fromkeys(
             str(node.get("props", {}).get("fp_id")) for node in nodes
@@ -160,9 +160,9 @@ def _dedupe_retrieved_subgraph(subgraph: dict) -> dict:
         return subgraph
     try:
         from ..graph.entity_links_loader import validate_links
-        from .entity_dedupe import dedupe_subgraph
+        from .retrieval.entity_dedupe import dedupe_subgraph
     except ImportError:  # Script-style imports from this directory.
-        from entity_dedupe import dedupe_subgraph
+        from retrieval.entity_dedupe import dedupe_subgraph
         from payment_card.file_pipeline.graph.entity_links_loader import validate_links
     report = validate_links(within_csv=Path(mapping_path).expanduser())
     if report["errors"]:
@@ -348,9 +348,9 @@ def apply(schema: str = "fp_chat"):
         try:
             if os.environ.get("FP_SEED_UNION", "").strip().lower() in {"1", "true", "yes", "on"}:
                 try:
-                    from .seed_union import union_seed_names
+                    from .retrieval.seed_union import union_seed_names
                 except ImportError:
-                    from seed_union import union_seed_names
+                    from retrieval.seed_union import union_seed_names
                 analysis.entities = union_seed_names(
                     _CURRENT_QUESTION.get(), getattr(analysis, "_fp_seed_candidates", []),
                     getattr(analysis, "entities", []) or [],

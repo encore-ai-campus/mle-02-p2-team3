@@ -1,7 +1,7 @@
 import csv
 
 from payment_card.file_pipeline.graph.entity_links_loader import validate_links
-from payment_card.file_pipeline.chat.entity_dedupe import dedupe_subgraph
+from payment_card.file_pipeline.chat.retrieval.entity_dedupe import dedupe_subgraph
 
 
 def _write_csv(path, fieldnames, rows):
@@ -70,7 +70,7 @@ def test_dedupe_preserves_evidence_and_deduplicates_pages():
 
 def test_across_cards_similar_links_are_excluded_from_merge_mapping(tmp_path):
     from payment_card.file_pipeline.graph.entity_links_loader import validate_links
-    from payment_card.file_pipeline.chat.entity_dedupe import dedupe_subgraph
+    from payment_card.file_pipeline.chat.retrieval.entity_dedupe import dedupe_subgraph
 
     # SIMILAR rows are intentionally not part of the loader's merge mapping.
     fields = ["group_id", "kind", "canonical_node_id", "member_node_id", "same_props", "distinct_pages", "scope", "link_type", "merge_target"]

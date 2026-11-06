@@ -16,7 +16,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Iterable
 
-from ..entity_dedupe import dedupe_subgraph
+from ..retrieval.entity_dedupe import dedupe_subgraph
 from ...graph.entity_links_loader import validate_links
 from .retrieval_eval import uuidish
 from .seed_matcher import SeedMatcher

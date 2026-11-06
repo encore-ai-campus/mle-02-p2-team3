@@ -21,10 +21,50 @@ _ORIGINAL_ANALYZE = None
 _ORIGINAL_EXPLORE = None
 _ORIGINAL_GENERATE_STREAM = None
 _ORIGINAL_ANSWER_SYSTEM = None
+_ORIGINAL_LLM_STREAM = None
 _ORIGINAL_RUN_QUERY = None
 _POOL_RUN_QUERY = None
 _PATCHED_DB = None
 _ANSWER_CAPTURE: ContextVar[dict | None] = ContextVar("fp_chat_answer_capture", default=None)
+_SOURCE_LABEL_SYSTEM: ContextVar[str | None] = ContextVar("fp_chat_source_label_system", default=None)
+
+
+def _source_label_enabled() -> bool:
+    return os.environ.get("FP_SOURCE_LABEL", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _annotate_source_labels(db, subgraph: dict) -> dict:
+    """Enrich retrieved Benefit nodes from one evidence lookup; fail open."""
+    try:
+        try:
+            from .source_label import annotate_subgraph, load_document_labels
+        except ImportError:
+            from source_label import annotate_subgraph, load_document_labels
+        nodes = (subgraph or {}).get("nodes") or []
+        ids = list(dict.fromkeys(
+            str(node.get("props", {}).get("fp_id")) for node in nodes
+            if node.get("label") == "Benefit" and node.get("props", {}).get("fp_id")
+            and not str(node["props"]["fp_id"]).startswith("doc:")
+        ))
+        if not ids:
+            return subgraph
+        evidence = db.run_query(
+            "select node_id, doc_sha256 from public.fp_evidence where node_id = any(%(node_ids)s)",
+            {"node_ids": ids},
+        )
+        node_doc_shas: dict[str, list[str]] = {}
+        for row in evidence:
+            node_doc_shas.setdefault(str(row["node_id"]), []).append(str(row["doc_sha256"]))
+        index_root = Path(os.environ.get("FP_DOC_INDEX_DIR") or
+                          (Path(__file__).resolve().parents[3] / "data" / "index"))
+        if index_root.name == "documents.csv":
+            index_dirs = [index_root]
+        else:
+            index_dirs = [path.parent for path in sorted(index_root.glob("*/documents.csv"))]
+        labels = load_document_labels(index_dirs)
+        return annotate_subgraph(subgraph, node_doc_shas, labels)
+    except Exception:
+        return subgraph
 
 
 def _load_modules():
@@ -135,7 +175,7 @@ def apply(schema: str = "fp_chat"):
     if not isinstance(schema, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema):
         raise ValueError("schema must match [A-Za-z_][A-Za-z0-9_]*")
     global _ORIGINAL_ANSWER, _ORIGINAL_LIST_ENTITIES, _ORIGINAL_ANALYZE
-    global _ORIGINAL_EXPLORE, _ORIGINAL_GENERATE_STREAM, _ORIGINAL_ANSWER_SYSTEM
+    global _ORIGINAL_EXPLORE, _ORIGINAL_GENERATE_STREAM, _ORIGINAL_ANSWER_SYSTEM, _ORIGINAL_LLM_STREAM
     global _ORIGINAL_RUN_QUERY, _POOL_RUN_QUERY, _PATCHED_DB
     db = _load_modules()
     if _ORIGINAL_RUN_QUERY is None:
@@ -173,6 +213,17 @@ def apply(schema: str = "fp_chat"):
     original_analyze = _ORIGINAL_ANALYZE
     original_explore = _ORIGINAL_EXPLORE
     original_generate_stream = _ORIGINAL_GENERATE_STREAM
+    if (_source_label_enabled() and getattr(rag, "llm", None) is not None
+            and callable(getattr(rag.llm, "stream", None))):
+        if _ORIGINAL_LLM_STREAM is None:
+            _ORIGINAL_LLM_STREAM = rag.llm.stream
+        original_llm_stream = _ORIGINAL_LLM_STREAM
+
+        def source_aware_llm_stream(system_prompt, messages, *args, **kwargs):
+            prompt = _SOURCE_LABEL_SYSTEM.get()
+            return original_llm_stream(prompt if prompt is not None else system_prompt, messages, *args, **kwargs)
+
+        rag.llm.stream = source_aware_llm_stream
 
     def list_entities(question: str | None = None):
         capture = _ANSWER_CAPTURE.get()
@@ -306,7 +357,8 @@ def apply(schema: str = "fp_chat"):
                 )
                 if capture is not None:
                     capture["selected_entities"] = list(analysis.entities)
-            return _dedupe_retrieved_subgraph(original_explore(analysis))
+            subgraph = _dedupe_retrieved_subgraph(original_explore(analysis))
+            return _annotate_source_labels(db, subgraph) if _source_label_enabled() else subgraph
         finally:
             if capture is not None:
                 capture["latency_ms"]["explore_db"] = (time.perf_counter() - started) * 1000
@@ -315,7 +367,16 @@ def apply(schema: str = "fp_chat"):
         capture = _ANSWER_CAPTURE.get()
         started = time.perf_counter()
         first = None
+        source_prompt_token = None
         try:
+            if _source_label_enabled():
+                try:
+                    from .answer_format import with_source_label_rule
+                except ImportError:
+                    from answer_format import with_source_label_rule
+                source_prompt_token = _SOURCE_LABEL_SYSTEM.set(
+                    with_source_label_rule(rag.ANSWER_SYSTEM, sub)
+                )
             for chunk in original_generate_stream(question, sub, history):
                 if first is None:
                     first = time.perf_counter()
@@ -323,6 +384,8 @@ def apply(schema: str = "fp_chat"):
                         capture["latency_ms"]["first_token"] = (first - started) * 1000
                 yield chunk
         finally:
+            if source_prompt_token is not None:
+                _SOURCE_LABEL_SYSTEM.reset(source_prompt_token)
             if capture is not None and first is None:
                 capture["latency_ms"]["first_token"] = None
 
@@ -339,3 +402,5 @@ def restore():
     rag = sys.modules.get("rag")
     if rag is not None and _ORIGINAL_ANSWER_SYSTEM is not None:
         rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM
+    if rag is not None and _ORIGINAL_LLM_STREAM is not None and getattr(rag, "llm", None) is not None:
+        rag.llm.stream = _ORIGINAL_LLM_STREAM

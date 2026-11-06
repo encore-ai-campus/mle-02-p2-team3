@@ -11,7 +11,7 @@ CHAT = ROOT / "src/card_benefit/payment_card/file_pipeline/chat"
 
 def load(name):
     sys.path.insert(0, str(CHAT))
-    spec = importlib.util.spec_from_file_location(f"answer_check_test_{name}", next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
+    spec = importlib.util.spec_from_file_location(f"answer_check_test_{name}", next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py", CHAT / "answer" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -113,6 +113,7 @@ def test_wrapper_check_failure_keeps_answer_and_does_not_log_connection_strings(
     qa = load("qa_log")
     monkeypatch.setitem(sys.modules, "qa_log", qa)
     monkeypatch.setitem(sys.modules, "answer_eval", load("answer_eval"))
+    monkeypatch.setitem(sys.modules, "answer.answer_eval", sys.modules["answer_eval"])
     captured = []
     original_build = qa.build_record
 
@@ -149,6 +150,7 @@ def test_wrapper_check_failure_keeps_answer_and_does_not_log_connection_strings(
     check_module = load("answer_check")
     monkeypatch.setattr(check_module, "check_answer_numbers", lambda *a, **k: (_ for _ in ()).throw(RuntimeError()))
     monkeypatch.setitem(sys.modules, "answer_check", check_module)
+    monkeypatch.setitem(sys.modules, "answer.answer_check", check_module)
 
     patched = patch.apply()
     result = patched.answer("합성 질문")

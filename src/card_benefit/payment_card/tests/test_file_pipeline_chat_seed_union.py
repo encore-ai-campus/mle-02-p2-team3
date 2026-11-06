@@ -12,7 +12,7 @@ CHAT = ROOT / "file_pipeline" / "chat"
 
 def load(name):
     sys.path.insert(0, str(CHAT))
-    spec = importlib.util.spec_from_file_location(f"seed_union_test_{name}", next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
+    spec = importlib.util.spec_from_file_location(f"seed_union_test_{name}", next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py", CHAT / "answer" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)

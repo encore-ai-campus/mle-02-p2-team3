@@ -202,9 +202,9 @@ def apply(schema: str = "fp_chat"):
     if _ORIGINAL_ANSWER_SYSTEM is None:
         _ORIGINAL_ANSWER_SYSTEM = getattr(rag, "ANSWER_SYSTEM", "")
     try:
-        from .answer_format import get_answer_format_version, select_answer_system
+        from .answer.answer_format import get_answer_format_version, select_answer_system
     except ImportError:
-        from answer_format import get_answer_format_version, select_answer_system
+        from answer.answer_format import get_answer_format_version, select_answer_system
     legacy = os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "legacy"
     selected_answer_format_version = "legacy" if legacy else get_answer_format_version()
     rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM if legacy else select_answer_system()
@@ -259,9 +259,10 @@ def apply(schema: str = "fp_chat"):
                 return result
             result["selected_entities"] = list(capture["selected_entities"])
             try:
-                from . import answer_eval, qa_log
+                from .answer import answer_eval
+                from . import qa_log
             except ImportError:
-                import answer_eval
+                from answer import answer_eval
                 import qa_log
             stages = capture["latency_ms"]
             stages["total"] = (time.perf_counter() - started) * 1000
@@ -278,9 +279,9 @@ def apply(schema: str = "fp_chat"):
             subgraph = result.get("subgraph") or {}
             try:
                 try:
-                    from .answer_check import check_answer_numbers
+                    from .answer.answer_check import check_answer_numbers
                 except ImportError:
-                    from answer_check import check_answer_numbers
+                    from answer.answer_check import check_answer_numbers
                 seed_benefit_ids = _selected_benefit_ids(subgraph, capture["selected_entities"])
                 number_check = check_answer_numbers(
                     str(result.get("answer", "")), subgraph, seed_benefit_ids=seed_benefit_ids,
@@ -371,9 +372,9 @@ def apply(schema: str = "fp_chat"):
         try:
             if _source_label_enabled():
                 try:
-                    from .answer_format import with_source_label_rule
+                    from .answer.answer_format import with_source_label_rule
                 except ImportError:
-                    from answer_format import with_source_label_rule
+                    from answer.answer_format import with_source_label_rule
                 source_prompt_token = _SOURCE_LABEL_SYSTEM.set(
                     with_source_label_rule(rag.ANSWER_SYSTEM, sub)
                 )

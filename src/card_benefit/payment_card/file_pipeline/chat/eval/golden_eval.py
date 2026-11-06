@@ -4,7 +4,7 @@ import argparse, csv, json, random, statistics
 from collections import defaultdict
 from pathlib import Path
 
-from .. import answer_eval
+from ..answer import answer_eval
 from ..review import review_sheet
 
 ROOT = Path(__file__).resolve().parents[6]

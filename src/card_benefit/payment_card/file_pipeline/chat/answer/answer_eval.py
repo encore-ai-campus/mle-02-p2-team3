@@ -7,7 +7,7 @@ from pathlib import Path
 import time
 import re
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 
 
 def safe_tmp(path):
@@ -229,8 +229,12 @@ def run(args):
     if args.llm != "openai":
         raise ValueError("--execute에는 --llm openai가 필요합니다.")
 
-    from openai_llm_patch import install, reset_usage, usage_totals, CostLimitExceeded
-    from fp_chat_patch import apply as apply_db
+    try:
+        from ..openai_llm_patch import install, reset_usage, usage_totals, CostLimitExceeded
+        from ..fp_chat_patch import apply as apply_db
+    except ImportError:  # 스크립트식 실행: PYTHONPATH 에 chat/ 폴더 필요
+        from openai_llm_patch import install, reset_usage, usage_totals, CostLimitExceeded
+        from fp_chat_patch import apply as apply_db
     reset_usage()
     install(max_cost_usd=args.max_cost_usd, sleep=args.sleep)
     rag = apply_db("fp_chat")

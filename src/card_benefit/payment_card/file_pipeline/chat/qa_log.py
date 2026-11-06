@@ -12,11 +12,11 @@ import sys
 import uuid
 
 try:
-    from .answer_eval import _number_candidates
-    from .answer_format import ANSWER_FORMAT_VERSION, check_answer_format
+    from .answer.answer_eval import _number_candidates
+    from .answer.answer_format import ANSWER_FORMAT_VERSION, check_answer_format
 except ImportError:  # Script-style imports from this directory.
-    from answer_eval import _number_candidates
-    from answer_format import ANSWER_FORMAT_VERSION, check_answer_format
+    from answer.answer_eval import _number_candidates
+    from answer.answer_format import ANSWER_FORMAT_VERSION, check_answer_format
 
 ROOT = Path(__file__).resolve().parents[5]
 
@@ -48,9 +48,9 @@ def build_record(*, question, answer, result, session_id=None, model=None, usage
     runs = sorted({str(node.get("props", {}).get("run_id")) for node in nodes
                    if node.get("props", {}).get("run_id") is not None})
     try:
-        from . import answer_eval
+        from .answer import answer_eval
     except ImportError:
-        import answer_eval
+        from answer import answer_eval
     evidence_text = "\n".join(
         [str(node.get("name", "")) + " " + " ".join(str(v) for v in (node.get("props") or {}).values())
          for node in nodes]
@@ -60,9 +60,9 @@ def build_record(*, question, answer, result, session_id=None, model=None, usage
     if number_check is None:
         try:
             try:
-                from .answer_check import check_answer_numbers
+                from .answer.answer_check import check_answer_numbers
             except ImportError:
-                from answer_check import check_answer_numbers
+                from answer.answer_check import check_answer_numbers
             number_check = check_answer_numbers(str(answer), subgraph)
         except Exception:
             number_check = {"error": "check_failed"}

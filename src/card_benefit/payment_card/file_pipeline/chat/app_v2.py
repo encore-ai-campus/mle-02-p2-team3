@@ -101,8 +101,8 @@ def _write_qa_log(question: str, answer: str, subgraph: dict, selected_entities:
         refs, evidence_error = [], "source_refs_query_error"
     try:
         import llm
-        from answer_format import get_answer_format_version
-        import answer_eval
+        from answer.answer_format import get_answer_format_version
+        from answer import answer_eval
         import qa_log
         result = {"answer": answer, "subgraph": subgraph, "selected_entities": selected_entities}
         record = qa_log.build_record(

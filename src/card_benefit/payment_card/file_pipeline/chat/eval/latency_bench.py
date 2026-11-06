@@ -9,9 +9,9 @@ import statistics
 import time
 
 try:
-    from ..answer_eval import safe_tmp
+    from ..answer.answer_eval import safe_tmp
 except ImportError:  # Script-style imports from this directory.
-    from answer_eval import safe_tmp
+    from answer.answer_eval import safe_tmp
 
 
 def _records(path: Path, limit: int) -> list[dict]:

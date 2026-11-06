@@ -8,9 +8,9 @@ import os
 from pathlib import Path
 
 try:
-    from .. import answer_eval
+    from ..answer import answer_eval
 except ImportError:
-    import answer_eval
+    from answer import answer_eval
 
 MODEL = "gpt-6-luna"
 DEFAULT_CACHE = "/tmp/fact_judge_cache.json"

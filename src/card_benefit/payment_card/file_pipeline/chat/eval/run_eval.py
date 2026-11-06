@@ -77,7 +77,7 @@ def main(argv=None):
         for folder in args.csv_dir:
             forwarded.extend(["--csv-dir", folder])
         return retrieval_main(forwarded)
-    from answer_eval import run
+    from answer.answer_eval import run
     return run(args)
 
 

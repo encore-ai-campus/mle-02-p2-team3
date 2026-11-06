@@ -90,9 +90,9 @@ flowchart LR
 | `diagnose.py` | 결과가 빈 청크는 왜 비었나? (제목, 길이, 혜택 키워드 수) |
 | `locate_diagnose.py` | 인용문 위치를 못 찾은 이유는? (공백만 다름, 일부만 일치, 환각 의심 등) |
 | `report/ambiguity_report.py` | 같은 문구가 청크에 여러 번 나와 위치가 모호한 인용문은 어떤 것이 많나? |
-| `enum_violation_report.py` | 허용값 밖의 분류값(`kind` 등)을 어떤 값이 얼마나 냈나? |
+| `eval/enum_violation_report.py` | 허용값 밖의 분류값(`kind` 등)을 어떤 값이 얼마나 냈나? |
 | `eval/variance.py` | 같은 청크를 여러 번 돌렸을 때 결과가 얼마나 흔들리나? |
-| `prompt_version_compare.py` | 프롬프트를 바꾸자 항목 수가 늘었나 줄었나? (개수만, 정확성 아님) |
+| `eval/prompt_version_compare.py` | 프롬프트를 바꾸자 항목 수가 늘었나 줄었나? (개수만, 정확성 아님) |
 | `eval/eval_runs.py` | 같은 프롬프트 반복 또는 프롬프트별 성공·실패·빈 결과와 항목·근거 수를 요약하고, 반복 범위와 비교한다 |
 | `report/full_run_report.py` | 저장된 전체 실행 결과를 청크·위치·스키마·항목·길이 구간·표 밀도별 숫자로 집계한다. 원문/인용문 본문은 출력하지 않는다 |
 | `report/table_density_report.py` | 청크 텍스트만으로 표 밀도를 거칠게 나눠 결과 지표를 비교한다 (PDF를 열지 않음) |
@@ -110,10 +110,10 @@ flowchart LR
 
 | 파일 | 하는 일 |
 |---|---|
-| `review_sheet.py` | 사람이 원문과 대조할 표(마크다운)를 만든다 |
-| `review_auto_audit.py` | 기존 대조표의 인용문·청크·쪽 원문 위치·숫자 근거를 오프라인 점검한다. `--result-dir`을 주면 관계 끝점 ID와 허용된 엔티티 유형 연결도 확인한다. 추출 의미를 확정하지 않고 실패 코드만 저장소 밖 JSON으로 남긴다. PDF 텍스트 추출기가 쪽 인용문을 찾지 못한 경우는 페이지 단위 시각 확인으로 묶는다 |
-| `review_tally.py` | 사람이 체크한 표를 집계해 일치·오류·누락 비율을 낸다 |
-| `accuracy_review.py` | 청크 길이 구간별로 혜택 추출 표본과 원문 열람 파일을 준비하고 사람 판정을 집계해 정밀도를 계산한다 |
+| `review/review_sheet.py` | 사람이 원문과 대조할 표(마크다운)를 만든다 |
+| `review/review_auto_audit.py` | 기존 대조표의 인용문·청크·쪽 원문 위치·숫자 근거를 오프라인 점검한다. `--result-dir`을 주면 관계 끝점 ID와 허용된 엔티티 유형 연결도 확인한다. 추출 의미를 확정하지 않고 실패 코드만 저장소 밖 JSON으로 남긴다. PDF 텍스트 추출기가 쪽 인용문을 찾지 못한 경우는 페이지 단위 시각 확인으로 묶는다 |
+| `review/review_tally.py` | 사람이 체크한 표를 집계해 일치·오류·누락 비율을 낸다 |
+| `review/accuracy_review.py` | 청크 길이 구간별로 혜택 추출 표본과 원문 열람 파일을 준비하고 사람 판정을 집계해 정밀도를 계산한다 |
 | `review/empty_review.py` | 두 실행에서 비어 있던 청크 중 신호가 많은 항목의 원문 열람 파일과 판정표를 만들고 결과를 집계한다 |
 
 **⑥ 지식그래프 (`graph/`)**
@@ -244,7 +244,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli diagnose-empty --chunk-dir <하나 청크 폴더> --results-dir <저장소 밖>/results --output-dir <저장소 밖>/diagnosis
 
 # 사람이 채운 검토표의 표시 수와 비율 집계 (원문이나 인용문은 출력하지 않음)
-PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.review_tally --sheet <저장소 밖>/review_sheet.md --output-dir <저장소 밖>/review_tally
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.review.review_tally --sheet <저장소 밖>/review_sheet.md --output-dir <저장소 밖>/review_tally
 
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/

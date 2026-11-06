@@ -35,7 +35,7 @@ def _graph(directory, sha):
 
 
 def _inputs(tmp_path):
-    from payment_card.file_pipeline.extraction.label_eval import evaluate
+    from payment_card.file_pipeline.extraction.eval.label_eval import evaluate
 
     data = tmp_path / "data"; (data / "pdf").mkdir(parents=True)
     pdf = data / "pdf" / "sample.pdf"; pdf.write_bytes(b"synthetic-pdf")

@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.review_auto_audit import audit_review_sheet
+from payment_card.file_pipeline.extraction.review.review_auto_audit import audit_review_sheet
 
 
 def _make_fixture(root: Path, position: str = "4~8", excerpt: str = "5% 할인", rate: str = "5%", method: str = "DISCOUNT", checked: bool = True):

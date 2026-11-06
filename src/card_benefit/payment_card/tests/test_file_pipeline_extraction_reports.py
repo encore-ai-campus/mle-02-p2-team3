@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from payment_card.file_pipeline.extraction.enum_violation_report import analyze_runs
-from payment_card.file_pipeline.extraction.prompt_version_compare import compare_runs
+from payment_card.file_pipeline.extraction.eval.enum_violation_report import analyze_runs
+from payment_card.file_pipeline.extraction.eval.prompt_version_compare import compare_runs
 
 
 class EnumViolationReportTest(unittest.TestCase):

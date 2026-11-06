@@ -16,7 +16,7 @@ from pathlib import Path
 import re
 
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 KINDS = ("Benefit", "Condition", "Limit", "Target")
 RELATIONS = ("HAS_CONDITION", "HAS_LIMIT", "APPLIES_TO")
 

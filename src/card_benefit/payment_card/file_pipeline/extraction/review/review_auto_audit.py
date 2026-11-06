@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from .review_tally import LABEL_MAP, MARK
-from .schema import ALLOWED_RELATIONS
-from .verify import _numbers
+from ..schema import ALLOWED_RELATIONS
+from ..verify import _numbers
 
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 _GROUPS = ("benefits", "conditions", "limits", "targets", "relations")
 _VALUE_COLUMNS = {"benefits": 4, "conditions": 3, "limits": 5, "targets": 2, "relations": 1}
 _VALUE_NUMBER_COLUMNS = {"benefits": (2, 3), "conditions": (2,), "limits": (2,)}

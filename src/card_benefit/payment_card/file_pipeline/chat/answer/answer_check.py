@@ -10,7 +10,7 @@ import re
 try:
     from .answer_eval import _number_candidates
 except ImportError:  # Script-style imports from this directory.
-    from answer_eval import _number_candidates
+    from answer.answer_eval import _number_candidates
 
 
 _SCOPE_EDGE_TYPES = {"HAS_LIMIT", "HAS_CONDITION", "APPLIES_TO", "EXCLUDES"}

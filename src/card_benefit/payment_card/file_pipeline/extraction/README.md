@@ -7,8 +7,8 @@
 | 폴더 | 내용 |
 |---|---|
 | [`report/`](report/README.md) | 저장된 실행 결과를 숫자로 집계하는 보고·진단 도구다. 인용문 본문은 출력하지 않는다. (4개) |
-| [`review/`](review/README.md) | 사람이 원문과 대조하는 검토 자료를 준비하고 판정을 집계하는 도구다. (1개) |
-| [`eval/`](eval/README.md) | 같은 청크를 여러 번 돌린 결과를 비교하거나 합의 항목을 고르는 반복 실행 평가 도구다. (3개) |
+| [`review/`](review/README.md) | 사람이 원문과 대조하는 검토 자료를 준비하고 판정을 집계하는 도구다. (5개) |
+| [`eval/`](eval/README.md) | 같은 청크를 여러 번 돌린 결과를 비교하거나 합의 항목을 고르는 반복 실행 평가 도구다. (6개) |
 
 파일 표의 `report/`, `review/`, `eval/` 경로는 이 하위 폴더를 뜻한다. 이동한 모듈은 `payment_card.file_pipeline.extraction.<폴더>.<모듈>` 로 실행·임포트한다(예: `python -m payment_card.file_pipeline.extraction.eval.variance`).
 
@@ -36,21 +36,21 @@
 
 | 파일 | 역할 |
 |---|---|
-| `accuracy_review.py` | 추출 표본의 사람 정밀도 검토 자료를 준비하고 판정을 집계한다. |
+| `review/accuracy_review.py` | 추출 표본의 사람 정밀도 검토 자료를 준비하고 판정을 집계한다. |
 | `report/ambiguity_report.py` | 인용문 본문 없이 근거 위치의 모호성 통계를 집계한다. |
 | `eval/consensus.py` | 반복 결과에서 기준 횟수 이상 일치한 항목과 관계를 골라 별도 결과를 만든다. |
 | `diagnose.py` | 빈 추출 결과를 제목·길이·키워드 수 신호로 분류한다. |
 | `review/empty_review.py` | 반복 실행에서 빈 청크의 사람 검토 자료를 준비하고 집계한다. |
-| `enum_violation_report.py` | 스키마 enum 위반의 안전한 값·경로 정보를 집계한다. |
+| `eval/enum_violation_report.py` | 스키마 enum 위반의 안전한 값·경로 정보를 집계한다. |
 | `eval/eval_runs.py` | 저장된 실행 결과의 수치 지표를 집계한다. |
 | `report/full_run_report.py` | 전체 실행의 검증·위치·항목·표 밀도 지표를 종합한다. |
 | `report/item_loss_report.py` | 실행 그룹 사이 항목의 추가·누락·변동을 본문 없이 집계한다. |
-| `label_eval.py` | 사람이 만든 추출 라벨과 그래프 근거의 위치 일치도를 평가한다. |
+| `eval/label_eval.py` | 사람이 만든 추출 라벨과 그래프 근거의 위치 일치도를 평가한다. |
 | `locate_diagnose.py` | 인용 위치 실패 유형을 원문 없이 분류한다. |
-| `prompt_version_compare.py` | 프롬프트 실행 사이 항목·근거 수를 비교한다. |
-| `review_auto_audit.py` | 사람 검토표의 인용 위치·숫자 근거를 오프라인 검사한다. |
-| `review_sheet.py` | 추출 결과와 쪽 원문을 대조할 사람 검토표를 만든다. |
-| `review_tally.py` | 검토표의 사람 판정을 집계한다. |
+| `eval/prompt_version_compare.py` | 프롬프트 실행 사이 항목·근거 수를 비교한다. |
+| `review/review_auto_audit.py` | 사람 검토표의 인용 위치·숫자 근거를 오프라인 검사한다. |
+| `review/review_sheet.py` | 추출 결과와 쪽 원문을 대조할 사람 검토표를 만든다. |
+| `review/review_tally.py` | 검토표의 사람 판정을 집계한다. |
 | `report/table_density_report.py` | 청크 텍스트 기반 거친 표 밀도와 추출 지표를 비교한다. |
 | `eval/variance.py` | 반복 실행 결과의 항목 집합·건수 편차를 비교한다. |
 | `verify.py` | 저장 결과의 숫자·관계·근거 위치 관련 거친 자동 신호를 검사한다. |

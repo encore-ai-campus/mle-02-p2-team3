@@ -15,4 +15,5 @@
 | `latency_bench.py` | 그래프 조회·탐색 경로의 지연시간을 비교한다. |
 | `entity_dup_probe.py` | 질문별로 같은 엔티티 중복이 검색 결과에 미치는 영향을 시뮬레이션한다. |
 | `retrieval_stability.py` | 같은 질문을 반복해 검색 결과(노드 집합) 흔들림을 측정한다. |
+| `value_conflicts.py` | 질문과 그래프를 조사해 유사 혜택 사이의 수치 충돌을 오프라인으로 점검한다. |
 | `golden_set_template.csv` | 사람이 골든셋을 작성할 때 사용하는 열 템플릿이다. |

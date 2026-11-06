@@ -5,7 +5,7 @@ import sys
 
 CHAT = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat"
 sys.path.insert(0, str(CHAT))
-spec = importlib.util.spec_from_file_location("value_conflicts_test", CHAT / "value_conflicts.py")
+spec = importlib.util.spec_from_file_location("value_conflicts_test", CHAT / "eval" / "value_conflicts.py")
 value_conflicts = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = value_conflicts
 spec.loader.exec_module(value_conflicts)

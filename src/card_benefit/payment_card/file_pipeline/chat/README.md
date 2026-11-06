@@ -33,7 +33,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/p
 
 | 폴더 | 내용 |
 |---|---|
-| [`eval/`](eval/README.md) | 질문 생성, 골든셋, 평가 실행, 판정, 검색 진단 등 오프라인 평가 도구 11개와 골든셋 템플릿이다. |
+| [`eval/`](eval/README.md) | 질문 생성, 골든셋, 평가 실행, 판정, 검색 진단 등 오프라인 평가 도구 12개와 골든셋 템플릿이다. |
 | [`review/`](review/README.md) | 답변과 그래프 근거를 사람이 대조하는 검수 자료 생성 도구 2개다. |
 
 이동한 도구도 같은 패키지 아래라서 `payment_card.file_pipeline.chat.eval.<모듈>`, `payment_card.file_pipeline.chat.review.<모듈>` 로 실행한다(예: `python -m payment_card.file_pipeline.chat.eval.run_eval`). 스크립트식 임포트(`from answer_eval import ...`)가 필요한 도구는 `PYTHONPATH` 에 `chat/` 폴더를 포함한다.

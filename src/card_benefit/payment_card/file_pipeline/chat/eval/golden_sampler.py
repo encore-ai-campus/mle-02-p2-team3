@@ -9,8 +9,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from urllib.parse import quote
 
-ROOT = Path(__file__).resolve().parents[5]
-TEMPLATE = ROOT / "src/card_benefit/payment_card/file_pipeline/chat/golden_set_template.csv"
+ROOT = Path(__file__).resolve().parents[6]
+TEMPLATE = ROOT / "src/card_benefit/payment_card/file_pipeline/chat/eval/golden_set_template.csv"
 INDEX_ROOT = ROOT / "src/card_benefit/data/index"
 ISSUERS = {"hana": "하나", "woori": "우리"}
 

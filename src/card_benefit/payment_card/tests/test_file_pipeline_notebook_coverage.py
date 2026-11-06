@@ -25,8 +25,8 @@ def _modules():
     }
     # chat/ 모듈은 이름 충돌을 피하려고 'chat/<모듈>' 로 목록에 적는다.
     modules |= {
-        f"chat/{path.stem}"
-        for path in (FILE_PIPELINE / "chat").glob("*.py")
+        f"chat/{path.relative_to(FILE_PIPELINE / 'chat').with_suffix('').as_posix()}"
+        for path in (FILE_PIPELINE / "chat").rglob("*.py")
         if path.name != "__init__.py"
     }
     return modules

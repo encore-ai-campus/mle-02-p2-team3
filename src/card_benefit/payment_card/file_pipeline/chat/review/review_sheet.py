@@ -4,7 +4,7 @@ import argparse,csv,hashlib,html,json
 from collections import defaultdict
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[5]
+ROOT=Path(__file__).resolve().parents[6]
 MEANINGFUL={'Benefit','Condition','Limit','Target','Card'}
 def safe_output(path):
  p=Path(path).expanduser().resolve()

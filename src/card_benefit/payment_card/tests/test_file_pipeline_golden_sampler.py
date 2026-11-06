@@ -4,8 +4,8 @@ from pathlib import Path
 import fitz
 import pytest
 
-from payment_card.file_pipeline.chat import golden_sampler as sampler
-from payment_card.file_pipeline.chat.golden_set import convert
+from payment_card.file_pipeline.chat.eval import golden_sampler as sampler
+from payment_card.file_pipeline.chat.eval.golden_set import convert
 
 
 HEADERS = ["id", "issuer", "doc_id", "sha256", "file_path", "card_type", "doc_role",

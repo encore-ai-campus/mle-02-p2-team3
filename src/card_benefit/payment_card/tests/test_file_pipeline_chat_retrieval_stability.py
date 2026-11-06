@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from payment_card.file_pipeline.chat import retrieval_stability as stability
+from payment_card.file_pipeline.chat.eval import retrieval_stability as stability
 
 
 def test_aggregate_question_identical_repeats_have_full_stability():

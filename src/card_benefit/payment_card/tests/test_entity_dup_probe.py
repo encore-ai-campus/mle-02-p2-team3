@@ -1,5 +1,5 @@
-from payment_card.file_pipeline.chat.entity_dup_probe import evaluate_question
-from payment_card.file_pipeline.chat.retrieval_eval import uuidish
+from payment_card.file_pipeline.chat.eval.entity_dup_probe import evaluate_question
+from payment_card.file_pipeline.chat.eval.retrieval_eval import uuidish
 
 
 class _FixedMatcher:

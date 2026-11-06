@@ -1,7 +1,7 @@
 import importlib.util,csv,json
 from pathlib import Path
 CHAT=Path(__file__).resolve().parents[1]/'file_pipeline'/'chat'
-spec=importlib.util.spec_from_file_location('review_sheet_test',CHAT/'review_sheet.py');rs=importlib.util.module_from_spec(spec);spec.loader.exec_module(rs)
+spec=importlib.util.spec_from_file_location('review_sheet_test',CHAT / 'review' / 'review_sheet.py');rs=importlib.util.module_from_spec(spec);spec.loader.exec_module(rs)
 def wr(p,rows):
  with p.open('w',encoding='utf-8-sig',newline='') as f:w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
 def test_collects_direct_and_edge_dedup_limits_and_view_mapping(tmp_path):

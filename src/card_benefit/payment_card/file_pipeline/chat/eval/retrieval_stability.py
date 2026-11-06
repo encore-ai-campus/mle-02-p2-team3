@@ -13,7 +13,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 
 
 @dataclass
@@ -205,7 +205,7 @@ def _install_runtime() -> Any:
         print("OPENAI_API_KEY와 DB_URL이 필요합니다. DB_URL은 FP_DATABASE_URL 또는 DB_URI에서 가져올 수 있습니다.")
         return None
 
-    chat_dir = str(Path(__file__).resolve().parent)
+    chat_dir = str(Path(__file__).resolve().parent.parent)
     if chat_dir not in sys.path:
         sys.path.insert(0, chat_dir)
 

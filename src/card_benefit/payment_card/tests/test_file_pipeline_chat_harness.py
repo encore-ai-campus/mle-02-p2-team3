@@ -7,9 +7,9 @@ from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[4]  # 저장소 루트(src/card_benefit/payment_card/tests 기준)
 CHAT = ROOT / "src/card_benefit/payment_card/file_pipeline/chat"
-spec = importlib.util.spec_from_file_location("fp_eval_questions", CHAT / "eval_questions.py")
+spec = importlib.util.spec_from_file_location("fp_eval_questions", CHAT / "eval" / "eval_questions.py")
 eq = importlib.util.module_from_spec(spec); sys.modules[spec.name] = eq; spec.loader.exec_module(eq)
-spec2 = importlib.util.spec_from_file_location("fp_run_eval", CHAT / "run_eval.py")
+spec2 = importlib.util.spec_from_file_location("fp_run_eval", CHAT / "eval" / "run_eval.py")
 run_eval = importlib.util.module_from_spec(spec2); sys.modules[spec2.name] = run_eval; spec2.loader.exec_module(run_eval)
 spec3 = importlib.util.spec_from_file_location("fp_patch", CHAT / "fp_chat_patch.py")
 patch = importlib.util.module_from_spec(spec3); sys.modules[spec3.name] = patch; spec3.loader.exec_module(patch)

@@ -132,8 +132,8 @@ flowchart LR
 |---|---|
 | `chat/fp_chat_patch.py` | 명시적으로 적용할 때만 팀 GraphRAG를 `fp_chat` 뷰에 연결하고 질문 키워드 우선 검색을 수행한다 |
 | `chat/run_fp_chat.py` | Streamlit 챗봇 진입점. `streamlit run`으로 실행하고 화면에 fp_chat 모드를 표시한다 |
-| `chat/eval_questions.py` | 그래프 CSV에서 PDF 원문 없이 결정적인 메타데이터 질문 세트를 만든다. 출력은 `/tmp`만 허용한다 |
-| `chat/run_eval.py` | 기본 드라이런, `--execute`일 때 소량 질문 평가와 검색·답변·출처·시간 지표를 계산한다 |
+| `chat/eval/eval_questions.py` | 그래프 CSV에서 PDF 원문 없이 결정적인 메타데이터 질문 세트를 만든다. 출력은 `/tmp`만 허용한다 |
+| `chat/eval/run_eval.py` | 기본 드라이런, `--execute`일 때 소량 질문 평가와 검색·답변·출처·시간 지표를 계산한다 |
 
 **이름 읽는 법**: `report`는 숫자 보고서, `diagnose`는 원인 분류, `relocate`는 위치 복구, `verify`는 자동 점검, `variance`는 흔들림 측정, `review`는 사람 점검이다.
 

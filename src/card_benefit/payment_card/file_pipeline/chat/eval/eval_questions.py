@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 import random
 
-REPO_ROOT = Path(__file__).resolve().parents[5]
+REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_DIRS = (Path("/tmp/fp-check-hana"), Path("/tmp/fp-check-woori"))
 
 

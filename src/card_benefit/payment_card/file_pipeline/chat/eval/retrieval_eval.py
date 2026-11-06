@@ -10,7 +10,7 @@ import argparse, csv, json, hashlib, time
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 MAX_NODES=40
 
 def safe_output(path):
@@ -127,7 +127,7 @@ def evaluate(questions,nodes,edges,seed_mode='contains',hops=2,n=3,seed_threshol
         try:
             from .seed_matcher import SeedMatcher
         except ImportError:
-            from seed_matcher import SeedMatcher
+            from eval.seed_matcher import SeedMatcher
         matcher = SeedMatcher(nodes)
     out=[]
     for q in questions:
@@ -182,7 +182,7 @@ def load_db(schema='fp_chat'):
 def main(argv=None):
     p=argparse.ArgumentParser(); p.add_argument('questions',nargs='?'); p.add_argument('--make-questions',action='store_true'); p.add_argument('--hana',default='/tmp/fp-check-hana'); p.add_argument('--woori',default='/tmp/fp-check-woori'); p.add_argument('--source',choices=['csv','db'],default='csv'); p.add_argument('--csv-dir',action='append',default=[]); p.add_argument('--seed-mode',choices=['contains','fuzzy','oracle'],default='contains'); p.add_argument('--seed-count',type=int,default=3); p.add_argument('--seed-threshold',type=float,default=0.15); p.add_argument('--hops',type=int,choices=[1,2,3],default=2); p.add_argument('--execute',action='store_true'); p.add_argument('--output',default='/tmp/fp-retrieval.jsonl'); p.add_argument('--summary',default='/tmp/fp-retrieval-summary.json'); a=p.parse_args(argv)
     if a.make_questions:
-        from eval_questions import write_questions
+        from eval.eval_questions import write_questions
         questions,_=write_questions([a.hana,a.woori],'/tmp/fp-retrieval-questions.json',per_type=10)
         print(json.dumps({'output':'/tmp/fp-retrieval-questions.json','count':len(questions),'by_type':{t:sum(q['type']==t for q in questions) for t in sorted({q['type'] for q in questions})}})); return 0
     if not a.questions: p.error('questions JSON is required')

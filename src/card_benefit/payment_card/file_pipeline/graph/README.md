@@ -2,6 +2,8 @@
 
 상태: **제안 초안**. 저장소 후보는 팀 합의 전이며, SQL은 검토용으로만 작성했다. 실행하지 않았다.
 
+같은 이름 엔티티는 노드를 지우거나 `fp_edges`에 관계를 추가하지 않고, 별도 `public.fp_entity_links` 초안에 링크로 기록한다. `graph/entity_links_loader.py`는 기본적으로 CSV 검증만 하며, `--output-sql`을 지정하면 사용자가 직접 검토·실행할 INSERT 파일을 만든다. 실제 DB 적용은 이 초안의 팀 검토 후 수동으로 한다.
+
 ## 실행 상태
 
 2026-11-03 Supabase SQL Editor에서 당시 `pf_` 이름의 `schema.sql` 전체를 실행했고 네 테이블과 RLS를 확인했다(현재 이름은 `fp_`; `migrate_pf_to_fp.sql`은 미실행). 기존 `nodes`·`edges` 테이블 보존 여부는 확인하지 않았으며, 데이터 적재(`load.py --execute`)는 아직 실행하지 않았다.

@@ -112,6 +112,24 @@ def _make_list_entities(db, schema: str):
     return list_entities
 
 
+def _dedupe_retrieved_subgraph(subgraph: dict) -> dict:
+    """Apply only validated within-card links when the opt-in flag is enabled."""
+    enabled = os.environ.get("FP_ENTITY_DEDUPE", "").strip().lower() in {"1", "true", "yes", "on"}
+    mapping_path = os.environ.get("FP_ENTITY_LINKS_CSV")
+    if not enabled or not mapping_path:
+        return subgraph
+    try:
+        from ..graph.entity_links_loader import validate_links
+        from .entity_dedupe import dedupe_subgraph
+    except ImportError:  # Script-style imports from this directory.
+        from entity_dedupe import dedupe_subgraph
+        from payment_card.file_pipeline.graph.entity_links_loader import validate_links
+    report = validate_links(within_csv=Path(mapping_path).expanduser())
+    if report["errors"]:
+        raise ValueError("invalid FP_ENTITY_LINKS_CSV: " + "; ".join(report["errors"]))
+    return dedupe_subgraph(subgraph, report["merge_mapping"])
+
+
 def apply(schema: str = "fp_chat"):
     """Configure chatbot db/rag modules for a validated PostgreSQL schema (opt in)."""
     if not isinstance(schema, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", schema):
@@ -271,7 +289,7 @@ def apply(schema: str = "fp_chat"):
         capture = _ANSWER_CAPTURE.get()
         started = time.perf_counter()
         try:
-            return original_explore(analysis)
+            return _dedupe_retrieved_subgraph(original_explore(analysis))
         finally:
             if capture is not None:
                 capture["latency_ms"]["explore_db"] = (time.perf_counter() - started) * 1000

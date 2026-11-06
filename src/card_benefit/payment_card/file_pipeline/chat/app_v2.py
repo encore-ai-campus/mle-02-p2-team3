@@ -184,6 +184,9 @@ def _run_turn(question: str, conversation: dict) -> None:
             return
         sources = ui_v2.collect_sources(subgraph)
         compare_table = ui_v2.build_compare_table(subgraph)
+        merged_groups = [node for node in subgraph.get("nodes", []) if node.get("merged_member_count", 1) > 1]
+        if merged_groups:
+            st.caption(f"중복 연결로 묶은 그룹 {len(merged_groups)}개 · 멤버 노드 {sum(node['merged_member_count'] for node in merged_groups)}개")
         turn = {
             "question": question,
             "analysis_question": analysis_question,
@@ -193,6 +196,7 @@ def _run_turn(question: str, conversation: dict) -> None:
             "selected_entities": selected_entities,
             "latency_ms": latency_ms,
             "search_process": search_process,
+            "entity_dedupe": {"groups": len(merged_groups), "members": sum(node["merged_member_count"] for node in merged_groups)},
             "subgraph": subgraph,
         }
         with st.expander("근거", expanded=False):

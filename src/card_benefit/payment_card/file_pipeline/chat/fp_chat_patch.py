@@ -1,12 +1,17 @@
 """Opt-in adapter for running the team's GraphRAG chatbot against fp_chat views."""
 from __future__ import annotations
 
+import copy
 from contextvars import ContextVar
+import json
 from pathlib import Path
 import os
 import re
 import sys
+import tempfile
+import threading
 import time
+import unicodedata
 
 try:
     from .db_pool import PoolQueryRunner
@@ -27,6 +32,134 @@ _POOL_RUN_QUERY = None
 _PATCHED_DB = None
 _ANSWER_CAPTURE: ContextVar[dict | None] = ContextVar("fp_chat_answer_capture", default=None)
 _SOURCE_LABEL_SYSTEM: ContextVar[str | None] = ContextVar("fp_chat_source_label_system", default=None)
+_ANALYSIS_CACHE: dict[str, dict] = {}
+_ANALYSIS_CACHE_FILE: str | None = None
+_ANALYSIS_CACHE_READY = False
+_ANALYSIS_CACHE_LOCK = threading.RLock()
+
+
+def _analysis_cache_enabled() -> bool:
+    return os.environ.get("FP_ANALYSIS_CACHE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _analysis_cache_key(question: str) -> str | None:
+    if not isinstance(question, str):
+        return None
+    normalized = unicodedata.normalize("NFKC", question)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _analysis_cache_record(value) -> dict | None:
+    try:
+        entities = list(value.entities or [])
+        hops = value.hops
+        intent = value.intent
+    except (AttributeError, TypeError):
+        return None
+    if not entities or any(not isinstance(name, str) for name in entities):
+        return None
+    if isinstance(hops, bool) or not isinstance(hops, int) or not isinstance(intent, str):
+        return None
+    return {"entities": entities, "hops": hops, "intent": intent}
+
+
+def _valid_analysis_cache_record(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+    entities = value.get("entities")
+    hops = value.get("hops")
+    intent = value.get("intent")
+    if (not isinstance(entities, list) or not entities
+            or any(not isinstance(name, str) for name in entities)
+            or isinstance(hops, bool) or not isinstance(hops, int)
+            or not isinstance(intent, str)):
+        return None
+    return {"entities": list(entities), "hops": hops, "intent": intent}
+
+
+def _analysis_cache_path() -> str | None:
+    configured = os.environ.get("FP_ANALYSIS_CACHE_FILE", "").strip()
+    return str(Path(configured).expanduser()) if configured else None
+
+
+def _save_analysis_cache_locked() -> None:
+    if not _ANALYSIS_CACHE_FILE:
+        return
+    path = Path(_ANALYSIS_CACHE_FILE)
+    temporary = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=path.parent,
+            prefix=f".{path.name}.", suffix=".tmp", delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            json.dump({"version": 1, "entries": _ANALYSIS_CACHE}, stream, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except Exception:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+
+def _prepare_analysis_cache() -> None:
+    global _ANALYSIS_CACHE, _ANALYSIS_CACHE_FILE, _ANALYSIS_CACHE_READY
+    configured_path = _analysis_cache_path()
+    with _ANALYSIS_CACHE_LOCK:
+        if configured_path != _ANALYSIS_CACHE_FILE:
+            _ANALYSIS_CACHE = {}
+            _ANALYSIS_CACHE_FILE = configured_path
+            _ANALYSIS_CACHE_READY = False
+        if _ANALYSIS_CACHE_READY:
+            return
+        if configured_path:
+            try:
+                payload = json.loads(Path(configured_path).read_text(encoding="utf-8"))
+                entries = payload.get("entries", {}) if isinstance(payload, dict) else {}
+                if isinstance(entries, dict):
+                    for question, value in entries.items():
+                        key = _analysis_cache_key(question)
+                        record = _valid_analysis_cache_record(value)
+                        if key is not None and record:
+                            _ANALYSIS_CACHE[key] = record
+            except Exception:
+                pass
+        _ANALYSIS_CACHE_READY = True
+
+
+def _restore_analysis(record: dict, original_analyze):
+    analysis_type = getattr(original_analyze, "__globals__", {}).get("Analysis")
+    if not callable(analysis_type):
+        return None
+    try:
+        return analysis_type(
+            entities=list(record["entities"]), hops=record["hops"], intent=record["intent"]
+        )
+    except Exception:
+        return None
+
+
+def _cached_analysis(key: str, original_analyze):
+    _prepare_analysis_cache()
+    with _ANALYSIS_CACHE_LOCK:
+        record = _ANALYSIS_CACHE.get(key)
+        return _restore_analysis(record, original_analyze) if record is not None else None
+
+
+def _store_analysis(key: str, value) -> None:
+    record = _analysis_cache_record(value)
+    if record is None:
+        return
+    _prepare_analysis_cache()
+    with _ANALYSIS_CACHE_LOCK:
+        if _ANALYSIS_CACHE.get(key) == record:
+            return
+        _ANALYSIS_CACHE[key] = record
+        _save_analysis_cache_locked()
 
 
 def _source_label_enabled() -> bool:
@@ -331,7 +464,16 @@ def apply(schema: str = "fp_chat"):
                 entities = rag.list_entities(question)
             capture = _ANSWER_CAPTURE.get()
             started = time.perf_counter()
-            value = original_analyze(question, entities)
+            if _analysis_cache_enabled():
+                key = _analysis_cache_key(question)
+                value = _cached_analysis(key, original_analyze) if key is not None else None
+                if value is None:
+                    value = original_analyze(question, entities)
+                    if key is not None:
+                        _store_analysis(key, value)
+                    value = copy.deepcopy(value)
+            else:
+                value = original_analyze(question, entities)
             if os.environ.get("FP_SEED_UNION", "").strip().lower() in {"1", "true", "yes", "on"}:
                 try:
                     value._fp_seed_candidates = list(entities or [])

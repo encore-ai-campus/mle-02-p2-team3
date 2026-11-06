@@ -43,3 +43,5 @@ PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/p
 | `카드혜택-Supabase-구조-보완-초안.md` | Supabase 카드 혜택 구조 보완을 정리한 초안 문서다. |
 
 평가·검수 도구도 기본 데이터 경로에서 데이터베이스나 OpenAI를 자동 호출하지 않으며, 호출 기능이 있는 경우 코드에서 명시적으로 실행 경로를 선택해야 한다.
+
+`FP_ANALYSIS_CACHE=1`은 정규화 질문별 분석 결과 캐시를 선택적으로 켠다(기본값 꺼짐). `FP_ANALYSIS_CACHE_FILE=/경로/cache.json`을 지정하면 JSON 캐시를 읽고 새 항목을 원자적으로 저장한다.

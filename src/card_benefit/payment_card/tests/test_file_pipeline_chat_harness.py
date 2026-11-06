@@ -1,8 +1,10 @@
 import csv
 import importlib.util
 import json
+from dataclasses import dataclass
 from pathlib import Path
 import sys
+import types
 from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[4]  # 저장소 루트(src/card_benefit/payment_card/tests 기준)
@@ -13,6 +15,13 @@ spec2 = importlib.util.spec_from_file_location("fp_run_eval", CHAT / "eval" / "r
 run_eval = importlib.util.module_from_spec(spec2); sys.modules[spec2.name] = run_eval; spec2.loader.exec_module(run_eval)
 spec3 = importlib.util.spec_from_file_location("fp_patch", CHAT / "fp_chat_patch.py")
 patch = importlib.util.module_from_spec(spec3); sys.modules[spec3.name] = patch; spec3.loader.exec_module(patch)
+
+
+@dataclass
+class Analysis:
+    entities: list[str]
+    hops: int
+    intent: str
 
 
 def write_csv(path, cols, rows):
@@ -118,3 +127,178 @@ def test_rank_candidates_prefers_rare_matching_words_over_name_order():
     assert "소노 청구할인" in ranked and "소노카드" in ranked
     assert list(patch._rank_candidates(rows,["소노","할인"],limit=5))==list(ranked)  # 결정적
     assert len(patch._rank_candidates(rows,["소노","할인"],limit=500))==42
+
+
+def _install_cache_test_rag(monkeypatch, analyzer):
+    import importlib
+
+    monkeypatch.setenv("FP_CHAT_ENV_FILE", "/tmp/nonexistent.env")
+    monkeypatch.setenv("FP_DB_POOL", "0")
+    monkeypatch.delenv("FP_QA_LOG", raising=False)
+    monkeypatch.delenv("FP_ANALYSIS_CACHE", raising=False)
+    monkeypatch.delenv("FP_ANALYSIS_CACHE_FILE", raising=False)
+    monkeypatch.syspath_prepend(str(CHAT))
+    for name in (
+        "_ORIGINAL_ANSWER", "_ORIGINAL_LIST_ENTITIES", "_ORIGINAL_ANALYZE",
+        "_ORIGINAL_EXPLORE", "_ORIGINAL_GENERATE_STREAM", "_ORIGINAL_ANSWER_SYSTEM",
+        "_ORIGINAL_RUN_QUERY", "_POOL_RUN_QUERY", "_PATCHED_DB",
+    ):
+        monkeypatch.setattr(patch, name, None)
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE", {})
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE_FILE", None)
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE_READY", False)
+
+    fake_db = types.SimpleNamespace(
+        SCHEMA="graphrag", NODES="graphrag.nodes", EDGES="graphrag.edges",
+        run_query=lambda *args, **kwargs: [],
+    )
+    fake_rag = types.ModuleType("rag")
+    fake_rag.answer = lambda *args, **kwargs: {"answer": ""}
+    fake_rag.analyze = analyzer
+    monkeypatch.setattr(patch, "_load_modules", lambda: fake_db)
+    monkeypatch.setattr(importlib, "reload", lambda module: module)
+    monkeypatch.setitem(sys.modules, "rag", fake_rag)
+    patch.apply("fp_chat")
+    return fake_rag
+
+
+def test_analysis_cache_disabled_calls_original_for_each_question(monkeypatch):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append((question, entities))
+        return Analysis([question], 2, "원본")
+
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    first = rag.analyze("같은 질문", [])
+    second = rag.analyze("같은 질문", [])
+
+    assert len(calls) == 2
+    assert first.entities == second.entities == ["같은 질문"]
+
+
+def test_analysis_cache_normalizes_questions_and_separates_other_keys(monkeypatch):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append(question)
+        return Analysis([f"선택 {len(calls)}"], 3, "의도")
+
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", " YeS ")
+    first = rag.analyze("  카드   혜택 ", [])
+    normalized_hit = rag.analyze("카드　혜택", [])
+    separate = rag.analyze("카드 다른 혜택", [])
+
+    assert calls == ["  카드   혜택 ", "카드 다른 혜택"]
+    assert first == normalized_hit
+    assert separate.entities == ["선택 2"]
+
+
+def test_analysis_cache_does_not_store_empty_entity_results(monkeypatch):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append(question)
+        return Analysis([], 1, "")
+
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "1")
+    rag.analyze("대상 없음", [])
+    rag.analyze("대상 없음", [])
+
+    assert len(calls) == 2
+    assert patch._ANALYSIS_CACHE == {}
+
+
+def test_analysis_cache_returns_independent_analysis_objects(monkeypatch):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append(question)
+        return Analysis(["커피 할인"], 2, "혜택 조회")
+
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "on")
+    first = rag.analyze("커피 혜택", [])
+    first.entities.append("오염")
+    first.hops = 99
+    second = rag.analyze("커피 혜택", [])
+
+    assert len(calls) == 1
+    assert type(second) is Analysis
+    assert second.entities == ["커피 할인"] and second.hops == 2
+
+
+def test_analysis_cache_file_round_trip_and_broken_file(monkeypatch, tmp_path):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append(question)
+        return Analysis(["하나 카드"], 4, "카드 조회")
+
+    cache_file = tmp_path / "analysis-cache.json"
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "true")
+    monkeypatch.setenv("FP_ANALYSIS_CACHE_FILE", str(cache_file))
+    first = rag.analyze("하나 카드 혜택", [])
+    payload = json.loads(cache_file.read_text(encoding="utf-8"))
+    assert payload == {
+        "version": 1,
+        "entries": {
+            "하나 카드 혜택": {"entities": ["하나 카드"], "hops": 4, "intent": "카드 조회"}
+        },
+    }
+
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE", {})
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE_FILE", None)
+    monkeypatch.setattr(patch, "_ANALYSIS_CACHE_READY", False)
+    restarted_calls = []
+
+    def restarted_analyze(question, entities):
+        restarted_calls.append(question)
+        return Analysis(["새 결과"], 1, "")
+
+    rag = _install_cache_test_rag(monkeypatch, restarted_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "1")
+    monkeypatch.setenv("FP_ANALYSIS_CACHE_FILE", str(cache_file))
+    restored = rag.analyze("하나 카드 혜택", [])
+    assert not restarted_calls
+    assert type(restored) is Analysis and restored == first
+
+    broken_file = tmp_path / "broken-cache.json"
+    broken_file.write_text("{깨진 json", encoding="utf-8")
+    broken_calls = []
+
+    def after_broken_file(question, entities):
+        broken_calls.append(question)
+        return Analysis(["정상 복구"], 1, "")
+
+    rag = _install_cache_test_rag(monkeypatch, after_broken_file)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "1")
+    monkeypatch.setenv("FP_ANALYSIS_CACHE_FILE", str(broken_file))
+    result = rag.analyze("깨진 파일 질문", [])
+    cached = rag.analyze("깨진 파일 질문", [])
+    assert len(broken_calls) == 1
+    assert result == cached == Analysis(["정상 복구"], 1, "")
+
+
+def test_analysis_cache_propagates_analyzer_exception_without_storing(monkeypatch):
+    calls = []
+
+    def original_analyze(question, entities):
+        calls.append(question)
+        raise RuntimeError("analyze failed")
+
+    rag = _install_cache_test_rag(monkeypatch, original_analyze)
+    monkeypatch.setenv("FP_ANALYSIS_CACHE", "1")
+    for _ in range(2):
+        try:
+            rag.analyze("예외 질문", [])
+        except RuntimeError as exc:
+            assert str(exc) == "analyze failed"
+        else:
+            assert False, "원본 예외가 전파되어야 함"
+
+    assert len(calls) == 2
+    assert patch._ANALYSIS_CACHE == {}

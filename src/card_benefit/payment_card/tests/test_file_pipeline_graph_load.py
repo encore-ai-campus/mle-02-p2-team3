@@ -27,7 +27,7 @@ def test_dry_run_never_connects(tmp_path, monkeypatch, capsys):
 
 
 class FakeCursor:
-    def __init__(self, duplicate=False): self.calls=[]; self.batch_calls=[]; self.duplicate=duplicate; self.counts=[]
+    def __init__(self, duplicate=False, existing_nodes=None): self.calls=[]; self.batch_calls=[]; self.duplicate=duplicate; self.counts=[]; self.existing_nodes=existing_nodes or []
     def execute(self, sql, params=None):
         self.calls.append((sql, params))
     def executemany(self, sql, rows): self.batch_calls.append((sql, list(rows)))
@@ -35,14 +35,17 @@ class FakeCursor:
         if self.counts: return (self.counts.pop(0),)
         if self.calls and self.calls[-1][0].startswith("SELECT COUNT"): return (0,)
         return (1,) if self.duplicate else None
-    def fetchall(self): return [(n,) for n in self.counts]
+    def fetchall(self):
+        if self.calls and self.calls[-1][0].startswith("SELECT id, node_type"):
+            return list(self.existing_nodes)
+        return [(n,) for n in self.counts]
     def __enter__(self): return self
     def __exit__(self, *args): return False
     def close(self): pass
 
 
 class FakeConn:
-    def __init__(self, duplicate=False, fail=False): self.cur=FakeCursor(duplicate); self.events=[]; self.fail=fail
+    def __init__(self, duplicate=False, fail=False, existing_nodes=None): self.cur=FakeCursor(duplicate, existing_nodes); self.events=[]; self.fail=fail
     def cursor(self): return self.cur
     def commit(self): self.events.append("commit")
     def rollback(self): self.events.append("rollback")
@@ -148,3 +151,97 @@ def test_execute_converts_empty_evidence_targets_and_chunk_id_to_null(tmp_path, 
     assert ev[0][0] == "a" and ev[0][1] is None
     assert ev[1][0] is None and ev[1][1] == "e"
     assert all((row[0] is None) != (row[1] is None) for row in ev)
+
+
+def _card_graph_files(tmp_path, benefit_type="Benefit"):
+    _csv(tmp_path / "fp_load_runs.csv", ["run_id", "input_folder_name", "model_name", "started_at", "node_count", "edge_count"],
+         [{"run_id": "r1", "input_folder_name": "in", "model_name": "m", "started_at": "2026-01-01T00:00:00+00:00", "node_count": 2, "edge_count": 1}])
+    _csv(tmp_path / "fp_nodes.csv", ["id", "node_type", "props", "chunk_id", "run_id"],
+         [{"id": "card-1", "node_type": "Card", "props": "{}", "chunk_id": "c", "run_id": "r1"},
+          {"id": "benefit-1", "node_type": benefit_type, "props": "{}", "chunk_id": "c", "run_id": "r1"}])
+    _csv(tmp_path / "fp_edges.csv", ["id", "source_id", "target_id", "edge_type", "run_id"],
+         [{"id": "offer-1", "source_id": "card-1", "target_id": "benefit-1", "edge_type": "OFFERS", "run_id": "r1"}])
+    _csv(tmp_path / "fp_evidence.csv", ["node_id", "edge_id", "doc_sha256", "page_no", "start_pos", "end_pos", "quote_status"],
+         [{"node_id": "benefit-1", "edge_id": "", "doc_sha256": "a" * 64, "page_no": 1, "start_pos": 1, "end_pos": 2, "quote_status": "located"}])
+
+
+def test_skip_existing_nodes_inserts_only_new_nodes_and_preserves_other_rows(tmp_path, monkeypatch):
+    _card_graph_files(tmp_path)
+    conn = FakeConn(existing_nodes=[("card-1", "Card")])
+    monkeypatch.setattr(load, "_connect", lambda _: conn)
+    monkeypatch.setenv("FP_DATABASE_URL", "unused")
+
+    result = load.load_csvs(tmp_path, execute=True, skip_existing_nodes=True)
+
+    tables = [load._table_for_sql(sql) for sql, _ in conn.cur.batch_calls]
+    by_table = {load._table_for_sql(sql): batch for sql, batch in conn.cur.batch_calls}
+    assert tables == ["fp_load_runs", "fp_nodes", "fp_edges", "fp_evidence"]
+    assert [row[0] for row in by_table["fp_nodes"]] == ["benefit-1"]
+    assert by_table["fp_edges"][0][0] == "offer-1"
+    assert by_table["fp_evidence"][0][0] == "benefit-1"
+    assert result["counts"]["fp_nodes"] == 2
+    assert result["csv_node_count"] == 2
+    assert result["actual_new_run_node_count"] == 1
+    assert result["skipped_existing_node_count"] == 1
+    assert result["skipped_existing_node_ids"] == ["card-1"]
+    assert conn.cur.calls.count(("SELECT id, node_type FROM public.fp_nodes WHERE id = ANY(%s)", (["card-1", "benefit-1"],))) == 1
+
+
+def test_skip_existing_nodes_rejects_non_card_overlap_before_inserts(tmp_path, monkeypatch):
+    _card_graph_files(tmp_path, benefit_type="Benefit")
+    conn = FakeConn(existing_nodes=[("benefit-1", "Benefit")])
+    monkeypatch.setattr(load, "_connect", lambda _: conn)
+    monkeypatch.setenv("FP_DATABASE_URL", "unused")
+
+    try:
+        load.load_csvs(tmp_path, execute=True, skip_existing_nodes=True)
+    except load.ExistingNodeConflictError:
+        pass
+    else:
+        assert False, "existing non-Card nodes must reject the load"
+
+    assert conn.cur.batch_calls == []
+    assert conn.events == ["rollback", "close"]
+
+
+def test_skip_existing_nodes_rejects_node_type_mismatch_before_inserts(tmp_path, monkeypatch):
+    _card_graph_files(tmp_path)
+    conn = FakeConn(existing_nodes=[("card-1", "Benefit")])
+    monkeypatch.setattr(load, "_connect", lambda _: conn)
+    monkeypatch.setenv("FP_DATABASE_URL", "unused")
+
+    try:
+        load.load_csvs(tmp_path, execute=True, skip_existing_nodes=True)
+    except load.ExistingNodeConflictError:
+        pass
+    else:
+        assert False, "node_type mismatch must reject the load"
+
+    assert conn.cur.batch_calls == []
+    assert conn.events == ["rollback", "close"]
+
+
+def test_skip_existing_nodes_without_overlaps_inserts_same_rows(tmp_path, monkeypatch):
+    _card_graph_files(tmp_path)
+    conn = FakeConn()
+    monkeypatch.setattr(load, "_connect", lambda _: conn)
+    monkeypatch.setenv("FP_DATABASE_URL", "unused")
+
+    load.load_csvs(tmp_path, execute=True, skip_existing_nodes=True)
+
+    tables = [load._table_for_sql(sql) for sql, _ in conn.cur.batch_calls]
+    by_table = {load._table_for_sql(sql): batch for sql, batch in conn.cur.batch_calls}
+    assert tables == ["fp_load_runs", "fp_nodes", "fp_edges", "fp_evidence"]
+    assert [row[0] for row in by_table["fp_nodes"]] == ["card-1", "benefit-1"]
+    assert by_table["fp_edges"][0][0] == "offer-1"
+    assert by_table["fp_evidence"][0][0] == "benefit-1"
+
+
+def test_skip_existing_nodes_dry_run_has_note_and_never_connects(tmp_path, monkeypatch):
+    _card_graph_files(tmp_path)
+    monkeypatch.setattr(load, "_connect", lambda _: (_ for _ in ()).throw(AssertionError("connected")))
+
+    result = load.load_csvs(tmp_path, skip_existing_nodes=True)
+
+    assert result["mode"] == "dry_run"
+    assert result["skip_existing_nodes_note"] == "Skip targets will be determined by DB lookup at execution time."

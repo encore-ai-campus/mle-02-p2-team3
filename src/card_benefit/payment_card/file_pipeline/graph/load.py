@@ -27,6 +27,10 @@ class DuplicateRunError(ValueError):
     pass
 
 
+class ExistingNodeConflictError(ValueError):
+    pass
+
+
 class DatabaseOperationError(RuntimeError):
     def __init__(self, exception_class, sqlstate=None):
         self.exception_class = exception_class
@@ -157,11 +161,14 @@ def _jsonb(value):
     return Jsonb(value)
 
 
-def load_csvs(csv_dir, *, execute=False):
+def load_csvs(csv_dir, *, execute=False, skip_existing_nodes=False):
     rows = validate_csvs(csv_dir)
     counts = {table: len(rows[table]) for table in WRITE_TABLES}
     if not execute:
-        return {"mode": "dry_run", "counts": counts}
+        result = {"mode": "dry_run", "counts": counts}
+        if skip_existing_nodes:
+            result["skip_existing_nodes_note"] = "Skip targets will be determined by DB lookup at execution time."
+        return result
     database_url = os.environ.get("FP_DATABASE_URL")
     if not database_url:
         raise RuntimeError("FP_DATABASE_URL is required for --execute")
@@ -173,10 +180,30 @@ def load_csvs(csv_dir, *, execute=False):
             cursor.execute("SELECT 1 FROM public.fp_load_runs WHERE run_id = %s", (run_id,))
             if cursor.fetchone():
                 raise DuplicateRunError("run_id already exists")
+            skipped_ids = set()
+            if skip_existing_nodes:
+                node_ids = [row["id"] for row in rows["fp_nodes"]]
+                cursor.execute(
+                    "SELECT id, node_type FROM public.fp_nodes WHERE id = ANY(%s)",
+                    (node_ids,),
+                )
+                existing_nodes = cursor.fetchall()
+                csv_nodes = {row["id"]: row for row in rows["fp_nodes"]}
+                conflicts = [
+                    node_id for node_id, node_type in existing_nodes
+                    if node_type != csv_nodes[node_id]["node_type"] or node_type != "Card"
+                ]
+                if conflicts:
+                    raise ExistingNodeConflictError(
+                        f"Existing nodes must match CSV Card nodes: {conflicts}"
+                    )
+                skipped_ids = {node_id for node_id, _ in existing_nodes}
             for table in WRITE_TABLES:
                 sql = _insert_sql(table)
                 batch = []
                 for row in rows[table]:
+                    if table == "fp_nodes" and row["id"] in skipped_ids:
+                        continue
                     values = []
                     for column in _INSERT_COLUMNS[table]:
                         value = row[column]
@@ -198,14 +225,22 @@ def load_csvs(csv_dir, *, execute=False):
                 if batch:
                     cursor.executemany(sql, batch)
         conn.commit()
-        return {"mode": "execute", "counts": counts}
+        result = {"mode": "execute", "counts": counts}
+        if skip_existing_nodes:
+            result.update({
+                "csv_node_count": len(rows["fp_nodes"]),
+                "actual_new_run_node_count": len(rows["fp_nodes"]) - len(skipped_ids),
+                "skipped_existing_node_count": len(skipped_ids),
+                "skipped_existing_node_ids": [row["id"] for row in rows["fp_nodes"] if row["id"] in skipped_ids][:5],
+            })
+        return result
     except Exception as exc:
         if conn is not None:
             try:
                 conn.rollback()
             except Exception:
                 pass
-        if isinstance(exc, (DuplicateRunError, DriverUnavailableError)):
+        if isinstance(exc, (DuplicateRunError, ExistingNodeConflictError, DriverUnavailableError)):
             raise
         state = getattr(exc, "sqlstate", None)
         raise DatabaseOperationError(type(exc).__name__, str(state) if state else None) from None
@@ -271,6 +306,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv-dir")
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--skip-existing-nodes", action="store_true")
     parser.add_argument("--delete-run")
     args = parser.parse_args(argv)
     try:
@@ -279,7 +315,7 @@ def main(argv=None):
         else:
             if not args.csv_dir:
                 parser.error("--csv-dir is required unless --delete-run is used")
-            result = load_csvs(args.csv_dir, execute=args.execute)
+            result = load_csvs(args.csv_dir, execute=args.execute, skip_existing_nodes=args.skip_existing_nodes)
     except Exception as exc:
         # Never serialize exception text or connection details.
         state = getattr(exc, "sqlstate", None)

@@ -280,6 +280,11 @@ def apply(schema: str = "fp_chat"):
             capture = _ANSWER_CAPTURE.get()
             started = time.perf_counter()
             value = original_analyze(question, entities)
+            if os.environ.get("FP_SEED_UNION", "").strip().lower() in {"1", "true", "yes", "on"}:
+                try:
+                    value._fp_seed_candidates = list(entities or [])
+                except (AttributeError, TypeError):
+                    pass
             if capture is not None:
                 capture["latency_ms"]["analyze_llm"] = (time.perf_counter() - started) * 1000
                 capture["selected_entities"] = list(getattr(value, "entities", []) or [])
@@ -290,6 +295,17 @@ def apply(schema: str = "fp_chat"):
         capture = _ANSWER_CAPTURE.get()
         started = time.perf_counter()
         try:
+            if os.environ.get("FP_SEED_UNION", "").strip().lower() in {"1", "true", "yes", "on"}:
+                try:
+                    from .seed_union import union_seed_names
+                except ImportError:
+                    from seed_union import union_seed_names
+                analysis.entities = union_seed_names(
+                    _CURRENT_QUESTION.get(), getattr(analysis, "_fp_seed_candidates", []),
+                    getattr(analysis, "entities", []) or [],
+                )
+                if capture is not None:
+                    capture["selected_entities"] = list(analysis.entities)
             return _dedupe_retrieved_subgraph(original_explore(analysis))
         finally:
             if capture is not None:

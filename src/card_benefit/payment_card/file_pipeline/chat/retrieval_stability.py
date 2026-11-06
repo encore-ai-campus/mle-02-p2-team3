@@ -10,9 +10,19 @@ import statistics
 import sys
 import time
 import unicodedata
+from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[5]
+
+
+@dataclass
+class FrozenAnalysis:
+    """Match graphrag_chatbot.rag.Analysis without importing DB runtime modules."""
+
+    entities: list[str] = field(default_factory=list)
+    hops: int = 1
+    intent: str = ""
 
 
 def safe_tmp(path: str | Path) -> Path:
@@ -109,7 +119,10 @@ def _benefit_rows(nodes: list[dict]) -> list[dict]:
     return result
 
 
-def run_repeated(questions: list[dict], repeat: int, rag: Any, output: str | Path) -> int:
+def run_repeated(
+    questions: list[dict], repeat: int, rag: Any, output: str | Path,
+    freeze_entities: dict[str, list[str]] | None = None,
+) -> int:
     """Run list_entities -> analyze -> explore; answer generation is never invoked."""
     out = safe_tmp(output)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -127,8 +140,16 @@ def run_repeated(questions: list[dict], repeat: int, rag: Any, output: str | Pat
                 started = time.perf_counter()
                 token = question_context.set(question) if question_context is not None else None
                 try:
-                    entities = rag.list_entities(question)
-                    analysis = rag.analyze(question, entities)
+                    if freeze_entities is None:
+                        entities = rag.list_entities(question)
+                        analysis = rag.analyze(question, entities)
+                        mode = "llm"
+                    else:
+                        frozen = freeze_entities.get(question, freeze_entities.get(str(question_index)))
+                        if frozen is None:
+                            raise ValueError(f"질문 {question_index}의 고정 엔티티가 없습니다: {question}")
+                        analysis = FrozenAnalysis(entities=list(frozen), hops=1, intent="")
+                        mode = "frozen"
                     subgraph = rag.explore(analysis) or {}
                 finally:
                     if token is not None:
@@ -138,7 +159,10 @@ def run_repeated(questions: list[dict], repeat: int, rag: Any, output: str | Pat
                     "question_id": question_id,
                     "question_index": question_index,
                     "repeat": repeat_number,
+                    "mode": mode,
                     "selected_entities": list(getattr(analysis, "entities", []) or []),
+                    "hops": getattr(analysis, "hops", None),
+                    "intent": str(getattr(analysis, "intent", "") or "")[:80],
                     "subgraph_node_count": len(nodes),
                     "node_ids": [str(node.get("id")) for node in nodes if node.get("id") is not None],
                     "benefits": _benefit_rows(nodes),
@@ -194,12 +218,47 @@ def _install_runtime() -> Any:
 
 def _print_summary(path: str | Path) -> int:
     records = [json.loads(line) for line in Path(path).expanduser().read_text(encoding="utf-8").splitlines() if line.strip()]
-    aggregate = aggregate_all(records)
-    summary = aggregate["questions"]
-    print("question_id\trepeats\tentity_selections\tmean_node_jaccard\tcommon_node_fraction\tpartial_only_nodes\tbenefit_values_differ")
-    for row in summary:
-        print("\t".join(str(row[key]) for key in ("question_id", "repeat_count", "distinct_entity_selections", "mean_pairwise_node_jaccard", "common_node_fraction", "nodes_in_some_repeats_only", "benefit_value_sets_differ")))
-    print(f"questions_with_benefit_value_differences\t{aggregate['questions_with_benefit_value_differences']}")
+    for mode in dict.fromkeys(row.get("mode", "llm") for row in records):
+        mode_records = [row for row in records if row.get("mode", "llm") == mode]
+        aggregate = aggregate_all(mode_records)
+        print(f"mode\t{mode}")
+        print("question_id\trepeats\tentity_selections\tmean_node_jaccard\tcommon_node_fraction\tpartial_only_nodes\tbenefit_values_differ")
+        for row in aggregate["questions"]:
+            print("\t".join(str(row[key]) for key in ("question_id", "repeat_count", "distinct_entity_selections", "mean_pairwise_node_jaccard", "common_node_fraction", "nodes_in_some_repeats_only", "benefit_value_sets_differ")))
+        print(f"questions_with_benefit_value_differences\t{aggregate['questions_with_benefit_value_differences']}")
+        hops_by_question: dict[str, list] = {}
+        for row in mode_records:
+            hops_by_question.setdefault(str(row.get("question_index", row.get("question_id", ""))), []).append(row.get("hops"))
+        if any(h is not None for values in hops_by_question.values() for h in values):
+            print("question_id\thops_per_repeat")
+            for question_id, values in hops_by_question.items():
+                print(f"{question_id}\t{values}")
+        if mode == "frozen":
+            if any(row["mean_pairwise_node_jaccard"] < 1.0 for row in aggregate["questions"]):
+                print("탐색 비결정성(DB 쪽) 의심")
+            else:
+                print("LLM 시작 엔티티 변동이 원인")
+    return 0
+
+
+def _freeze_from_jsonl(input_path: str | Path, output_path: str | Path) -> int:
+    records = [json.loads(line) for line in Path(input_path).expanduser().read_text(encoding="utf-8").splitlines() if line.strip()]
+    grouped: dict[str, list[list[str]]] = {}
+    for record in records:
+        index = str(record.get("question_index", record.get("question_id", "")))
+        entities = list(record.get("selected_entities") or [])
+        grouped.setdefault(index, []).append(entities)
+    frozen = {}
+    for index, selections in grouped.items():
+        counts: dict[tuple[str, ...], int] = {}
+        for selection in selections:
+            key = tuple(selection)
+            counts[key] = counts.get(key, 0) + 1
+        winner = max(counts, key=counts.get)
+        frozen[index] = list(winner)
+    out = safe_tmp(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(frozen, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return 0
 
 
@@ -208,21 +267,32 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command")
     summary_parser = subparsers.add_parser("summarize", help="Summarize a retrieval JSONL file")
     summary_parser.add_argument("--input", required=True, help="Input JSONL")
+    freeze_parser = subparsers.add_parser("freeze", help="Choose the most common entities per question from JSONL")
+    freeze_parser.add_argument("--input", required=True, help="Input JSONL")
+    freeze_parser.add_argument("--output", required=True, help="JSON output path under /tmp")
     parser.add_argument("--questions", help="Question JSON array or UTF-8 file with one question per line")
+    parser.add_argument("--freeze-entities", help="JSON mapping question text or question index to entity names")
     parser.add_argument("--repeat", type=int, default=5, help="Retrieval repeats per question (default: 5)")
     parser.add_argument("--output", help="JSONL output path under /tmp")
     args = parser.parse_args(argv)
     if args.command == "summarize":
         return _print_summary(args.input)
+    if args.command == "freeze":
+        return _freeze_from_jsonl(args.input, args.output)
     if not args.questions or not args.output:
         parser.error("--questions and --output are required")
     if args.repeat < 1:
         parser.error("--repeat must be at least 1")
     questions = _load_questions(args.questions)
+    freeze_entities = None
+    if args.freeze_entities:
+        freeze_entities = json.loads(Path(args.freeze_entities).expanduser().read_text(encoding="utf-8"))
+        if not isinstance(freeze_entities, dict) or any(not isinstance(names, list) for names in freeze_entities.values()):
+            parser.error("--freeze-entities must be a JSON object mapping questions or indices to entity-name arrays")
     rag = _install_runtime()
     if rag is None:
         return 1
-    return run_repeated(questions, args.repeat, rag, args.output)
+    return run_repeated(questions, args.repeat, rag, args.output, freeze_entities=freeze_entities)
 
 
 if __name__ == "__main__":

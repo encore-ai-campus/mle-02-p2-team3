@@ -96,3 +96,70 @@ def test_repeated_run_uses_fake_analyze_and_explore_without_answer(tmp_path):
     assert records[0]["node_ids"] == ["node-1", "node-2"]
     assert records[0]["benefits"] == [{"name": "Hotel perk", "rate": "15%", "amount": None, "page_number": 47}]
     assert [call[0] for call in calls] == ["entities", "analyze", "explore"] * 2
+    assert {row["mode"] for row in records} == {"llm"}
+
+
+def test_freeze_command_selects_most_common_entities_per_question(tmp_path):
+    source = tmp_path / "input.jsonl"
+    output = tmp_path / "frozen.json"
+    source.write_text("\n".join(json.dumps(row) for row in [
+        {"question_index": 0, "selected_entities": ["A"]},
+        {"question_index": 1, "selected_entities": ["C"]},
+        {"question_index": 0, "selected_entities": ["B"]},
+        {"question_index": 0, "selected_entities": ["A"]},
+    ]), encoding="utf-8")
+
+    assert stability.main(["freeze", "--input", str(source), "--output", str(output)]) == 0
+    assert json.loads(output.read_text(encoding="utf-8")) == {"0": ["A"], "1": ["C"]}
+
+
+def test_frozen_repeats_skip_analyze_and_report_db_nondeterminism(tmp_path, capsys):
+    class FakeRag:
+        def __init__(self):
+            self.explorations = 0
+
+        def list_entities(self, *_args):
+            raise AssertionError("frozen mode must not list or analyze entities")
+
+        def analyze(self, *_args):
+            raise AssertionError("frozen mode must not call analyze")
+
+        def explore(self, analysis):
+            self.explorations += 1
+            return {"nodes": [{"id": f"node-{self.explorations}"}]}
+
+    output = tmp_path / "frozen.jsonl"
+    real_safe_tmp = stability.safe_tmp
+    stability.safe_tmp = lambda _path: output
+    try:
+        assert stability.run_repeated(
+            [{"question": "synthetic question"}], 2, FakeRag(), output,
+            freeze_entities={"0": ["Hotel"]},
+        ) == 0
+    finally:
+        stability.safe_tmp = real_safe_tmp
+    records = [json.loads(line) for line in output.read_text(encoding="utf-8").splitlines()]
+    assert [row["mode"] for row in records] == ["frozen", "frozen"]
+    assert [row["selected_entities"] for row in records] == [["Hotel"], ["Hotel"]]
+    assert stability._print_summary(output) == 0
+    assert "탐색 비결정성(DB 쪽) 의심" in capsys.readouterr().out
+
+
+def test_frozen_deterministic_repeats_attribute_instability_to_llm(capsys, tmp_path):
+    class FakeRag:
+        def analyze(self, *_args):
+            raise AssertionError("frozen mode must not call analyze")
+
+        def explore(self, analysis):
+            assert analysis.entities == ["Hotel"]
+            return {"nodes": [{"id": "same-node"}]}
+
+    output = tmp_path / "frozen.jsonl"
+    real_safe_tmp = stability.safe_tmp
+    stability.safe_tmp = lambda _path: output
+    try:
+        stability.run_repeated([{"question": "synthetic question"}], 2, FakeRag(), output, {"0": ["Hotel"]})
+    finally:
+        stability.safe_tmp = real_safe_tmp
+    assert stability._print_summary(output) == 0
+    assert "LLM 시작 엔티티 변동이 원인" in capsys.readouterr().out

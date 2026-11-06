@@ -9,16 +9,15 @@
 
 흐름 순서에 맞춰 `file_pipeline/` 아래 남은 평평한 모듈 8개를 하위 폴더로 옮기고, 임포트·테스트·노트북·README를 같은 단계에서 고쳤다. 이동은 `~/pilot_work/reorg/reorg.py`가 별도 작업 폴더에서 적용하고, 단계마다 한 커밋, 검증 통과 후 `--no-ff` 병합했다(푸시 안 함).
 
-| 단계 | 이동 | 병합 직전 → 병합 | 커밋 |
-|---|---|---|---|
-| T | `traceability.py` → `doc_index/` | 658910a → 0a88643 | 2a9c634 |
-| E | `value_conflicts.py` → `chat/eval/` | 0a88643 → baaf144 | f2dd7c8, cd26ac6(보정) |
-| R | `entity_dedupe`, `seed_union`, `source_label` → `chat/retrieval/` | baaf144 → 876fa6b | 6df9cd0 |
-| A | `answer_check`, `answer_eval`, `answer_format` → `chat/answer/` | 876fa6b → e5b12e0 | b0edae4 |
-| U | `app_v2`, `ui_v2` → `chat/ui/` (사용자가 "폴더 정리부터 완료하자"로 승인) | 620ded8 → 아래 U 절 참고 | 아래 U 절 참고 |
+| 단계 | 병합 직전 → 병합 | 커밋 |
+|---|---|---|
+| T | 658910a → 0a88643 | 2a9c634 |
+| E | 0a88643 → baaf144 | f2dd7c8, cd26ac6(보정) |
+| R | baaf144 → 876fa6b | 6df9cd0 |
+| A | 876fa6b → e5b12e0 | b0edae4 |
+| U | 620ded8 → 아래 U 절 참고 | 아래 U 절 참고 |
 
-- 새 폴더 README 추가: `chat/retrieval/README.md`, `chat/answer/README.md`. `chat/README.md` 표·하위 폴더 표, `file_pipeline/README.md` 구조 설명, `notebooks/모듈-점검-목록.md` 갱신.
-- 결과 구조: `chat/` 바로 아래에는 진입점과 연결부(`run_fp_chat*`, `app_v2`, `ui_v2`, `fp_chat_patch`, `openai_llm_patch`, `db_pool`, `qa_log`)만 남았다. `file_pipeline/` 최상위 `.py`는 `__init__.py`뿐이다.
+- 이동 전후 구조와 모듈별 위치·설계 근거는 [구조 전후와 설계](../../설계/폴더구조-정리-전후와-설계.md)를 참고한다.
 - 되돌리는 기준: 정리 시작 전 커밋 `658910a`.
 
 ## 실행한 검증과 결과

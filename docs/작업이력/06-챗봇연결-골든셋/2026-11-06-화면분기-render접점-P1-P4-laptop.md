@@ -8,17 +8,11 @@
 
 ## 배경
 
-팀 Streamlit 앱의 탭(또는 좌우 분할)에서 `db_pipeline`과 `file_pipeline`을 따로 보여주기로 했다. 이쪽(`file_pipeline`)은 호스트가 함수 두 개만 부르면 화면이 뜨게 만든다. 로직(`rag`, `fp_chat_patch`, `answer/` 등)은 바꾸지 않았고, 상대 쪽 코드와 호스트 앱은 읽지 않았다.
+팀 Streamlit 앱의 탭 또는 좌우 분할에서 `file_pipeline` 화면을 호스트가 공개 접점으로 부르는 작업이었다. 로직은 바꾸지 않았고 팀 쪽 `db_pipeline`·호스트 코드는 읽지 않았다. 상세 설계는 [탭 분기 렌더링 설계](../../설계/탭-분기-렌더링-설계.md)를 참고한다.
 
 ## 한 일
 
-| 단계 | 내용 | 커밋 |
-|---|---|---|
-| 설계 | 공개 접점, 키 네임스페이스, 호스트 소유 항목, 위험, 검증 계획 문서 | 66c900a |
-| P1 | `chat/ui/app_v2.py` 화면 본문을 `render(*, key_prefix)`로 감싸고 `set_page_config`를 단독 실행으로 한정 | 7cacf1f |
-| P2 | 세션·위젯 키에 `key_prefix` 적용(기본 접두어 `v2`에서는 기존 키 유지), 사이드바를 본문 컨테이너로 이동, 두 번 렌더 AppTest 추가 | 1ef1d08 |
-| 보정 | 폴더 정리 위로 리베이스한 뒤 테스트 임포트·설계 문서 위치 수정 | 0ead382 |
-| P3·P4 | `chat/panel.py`(`prepare_backend()`, `render()`) 추가, `run_fp_chat_v2.py`를 `set_page_config → prepare_backend() → render(key_prefix="v2")`로 단순화, 계약 테스트 5개 | 41a39b5 |
+단계별 커밋: 설계 `66c900a`, P1 `7cacf1f`, P2 `1ef1d08`, 보정(리베이스 후 테스트 임포트·설계 문서 위치 수정) `0ead382`, P3·P4(계약 테스트 5개) `41a39b5` ([정본 설계](../../설계/탭-분기-렌더링-설계.md)).
 
 - 호스트가 부를 접점: `from payment_card.file_pipeline.chat.panel import prepare_backend, render`
 - 작업 방식: 파일 수정·테스트는 Codex가 하고(쓰기 권한 별도 지침), diff와 테스트는 직접 다시 확인한 뒤 커밋했다. Codex 샌드박스는 `.git`이 읽기 전용이라 git은 직접 했다.

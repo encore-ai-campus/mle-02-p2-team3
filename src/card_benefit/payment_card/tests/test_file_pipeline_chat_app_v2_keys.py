@@ -23,7 +23,7 @@ def test_render_uses_distinct_widget_and_session_state_keys(monkeypatch):
     monkeypatch.setitem(sys.modules, "llm", fake_llm)
 
     def app():
-        from chat.app_v2 import render
+        from chat.ui.app_v2 import render
 
         render(key_prefix="a")
         render(key_prefix="b")

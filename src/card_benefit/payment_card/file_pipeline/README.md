@@ -47,7 +47,7 @@ flowchart LR
 | `chunking/` | 쪽 원문과 제목 위치를 청크로 나누고 위치 보존을 확인한다. 자세한 분류는 [chunking README](chunking/README.md). |
 | `extraction/` | 추출 스키마·근거 위치·LLM 실행기와 시범, 평가·검토·진단 도구를 둔다. 자세한 분류는 [extraction README](extraction/README.md). |
 | `graph/` | 추출 결과를 그래프 형식으로 변환·검증·적재하고 그래프 보조 질의를 제공한다. |
-| `chat/` | 그래프 챗봇의 두 실행 화면, 팀 코드 어댑터, 평가·검수 도구를 둔다. 자세한 분류는 [chat README](chat/README.md). |
+| `chat/` | 그래프 챗봇의 두 실행 화면, 팀 코드 어댑터, 검색 보조(`retrieval/`), 평가·검수 도구를 둔다. 자세한 분류는 [chat README](chat/README.md). |
 | `ledger/` | 인덱스·추적·청크 JSON을 문서·쪽·청크 테이블 열에 매핑해 검토용 SQL을 만든다(DB 연결 코드 없음). 자세한 분류는 [ledger README](ledger/README.md). |
 | `notebooks/` | 모듈을 눈으로 점검하는 보조 노트북과 점검 목록을 둔다. 출력은 비운 상태로 유지한다. |
 | `sql/` | 파일 기반 파이프라인용 PostgreSQL 스키마 참고 명세를 둔다. 실행 코드가 자동 적용하지 않는다. |

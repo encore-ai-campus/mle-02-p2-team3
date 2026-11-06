@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 
 try:
-    from .eval.seed_matcher import normalize
+    from ..eval.seed_matcher import normalize
 except ImportError:  # Script-style imports from this directory.
     from eval.seed_matcher import normalize
 

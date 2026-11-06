@@ -36,12 +36,27 @@ def products_of(links: list[dict], doc_id: str) -> list[dict]:
     return products
 
 
-def run(issuer: str, data_root: Path, index_dir: Path, trace_dir: Path, output_dir: Path, overwrite: bool) -> dict:
+def run(
+    issuer: str,
+    data_root: Path,
+    index_dir: Path,
+    trace_dir: Path,
+    output_dir: Path,
+    overwrite: bool,
+    include_ocr: bool = False,
+) -> dict:
     import pymupdf
 
     rows = read_csv(index_dir / issuer / "documents.csv")
     links = read_csv(index_dir / issuer / "product_docs.csv")
     targets, skipped = select_documents(rows)
+    included_ocr = 0
+    if include_ocr:
+        skipped_paths = {item["file_path"] for item in skipped}
+        ocr_targets = [row for row in rows if row["file_path"] in skipped_paths]
+        targets.extend(ocr_targets)
+        included_ocr = len(ocr_targets)
+        skipped = []
     done, failed = [], []
     for row in targets:
         output = output_dir / issuer / f'{row["doc_id"]}.chunks.json'
@@ -58,7 +73,7 @@ def run(issuer: str, data_root: Path, index_dir: Path, trace_dir: Path, output_d
                          "sizes": [len(c["text"]) for c in result["chunks"]]})
         except (FileExistsError, FileNotFoundError, ValueError, OSError) as error:
             failed.append({"file_path": row["file_path"], "error": str(error)})
-    return {"done": done, "skipped": skipped, "failed": failed}
+    return {"done": done, "skipped": skipped, "failed": failed, "included_ocr": included_ocr}
 
 
 def main() -> int:
@@ -69,14 +84,19 @@ def main() -> int:
     parser.add_argument("--data-root", type=Path, default=Path("src/data"))
     parser.add_argument("--index-dir", type=Path, default=Path("src/card_benefit/data/index"))
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--include-ocr", action="store_true", help="OCR 필요 문서도 traceability JSON으로 청킹")
     args = parser.parse_args()
 
-    summary = run(args.issuer, args.data_root, args.index_dir, args.trace_dir, args.output_dir, args.overwrite)
+    summary = run(
+        args.issuer, args.data_root, args.index_dir, args.trace_dir, args.output_dir,
+        args.overwrite, include_ocr=args.include_ocr,
+    )
     sizes = [n for d in summary["done"] for n in d["sizes"]]
     print(json.dumps({
         "docs": len(summary["done"]), "chunks": len(sizes),
         "over_4000": sum(n > 4000 for n in sizes), "under_200": sum(n < 200 for n in sizes),
         "skipped_ocr": len(summary["skipped"]), "failed": len(summary["failed"]),
+        "included_ocr": summary["included_ocr"],
     }, ensure_ascii=False))
     for item in summary["failed"][:5]:
         print("실패:", item["file_path"], item["error"], file=sys.stderr)

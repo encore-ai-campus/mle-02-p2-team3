@@ -1,7 +1,7 @@
 # file_pipeline — 파일 기반 처리 방식 (담당: 이현근)
 
 이 문서는 이 폴더의 **지도**다. 파일을 추가하거나 옮기면 같은 커밋에서 아래 3절 표와 4절 그림을 고친다.
-(지도와 코드가 다르면 지도를 고친다.) 마지막 갱신: 2026-11-03
+(지도와 코드가 다르면 지도를 고친다.) 마지막 갱신: 2026-11-06
 
 ## 1. 한 줄 목적
 
@@ -10,99 +10,51 @@
 
 ## 2. 전체 흐름
 
-프로젝트 전체 11단계 중 이 폴더가 맡는 1~7단계다. 8~11단계(비교, 정규화, 지식그래프, 챗봇)와 상대 담당은 [프로젝트 지도](../../../../docs/프로젝트-지도.md)에 있다.
-색: 초록 = 완료, 회색 = 예정.
+프로젝트 11단계 중 `file_pipeline`은 1~7단계의 파일 처리와 10~11단계의 그래프·챗봇 코드를 제공한다. 8단계 결과 비교는 공동 작업이다. 9단계 정규화·통합은 아직 연결되지 않았으며, `graph/normalize_values.py`는 독립 보조 모듈이다. 전체 담당과 현황은 [프로젝트 지도](../../../../docs/프로젝트-지도.md)를 본다.
 
 ```mermaid
 flowchart LR
     A[1 수집<br/>src/data/*_all] --> B[2 분류·인덱스<br/>doc_index]
-    B --> C[3 원문 추적<br/>traceability]
+    B --> C[3 원문 추적<br/>doc_index.batch + traceability]
     C --> D[4 청킹<br/>chunking]
-    D --> O[5 추출 스키마<br/>공통 계약]
-    O --> E[6 LLM 추출<br/>실행기 작성]
-    E --> F[7 검증 → 결과 A<br/>예정]
+    D --> O[5 추출 스키마<br/>extraction.schema]
+    O --> E[6 LLM 추출<br/>extraction]
+    E --> F[7 검증 → 결과 A<br/>extraction]
+    F --> CMP[8 결과 A·B 비교<br/>공동]
+    CMP --> N[9 정규화·통합<br/>공동 연결 단계]
+    N --> G[10 지식그래프<br/>graph]
+    G --> H[11 질의·챗봇<br/>chat]
     classDef done fill:#cfe8cf,stroke:#4a8
-    classDef doing fill:#fff1b8,stroke:#c90
-    classDef todo fill:#eee,stroke:#999
-    class A,B,C,D,E done
-    class O doing
-    class F todo
+    classDef shared fill:#dde8f7,stroke:#58a
+    class A,B,C,D,E,F,G,H done
+    class O,N,CMP shared
 ```
 
-| 단계 | 입력 → 출력 | 상태 |
-|---|---|---|
-| 1 수집 | 카드사 사이트 → `src/data/{hana,woori}_all/` PDF와 manifest | 완료 (신용 중심, 체크는 하나만) |
-| 2 분류·인덱스 | manifest → `src/card_benefit/data/index/{issuer}/documents.csv`, `product_docs.csv` | 완료 |
-| 3 원문 추적 | 대표 PDF → 쪽별 원문과 청크 위치 JSON | 완료 (배치 포함) |
-| 4 청킹 | 쪽 원문 → 청크(쪽 번호와 글자 위치 포함) | 완료 (`chunking/`) |
-| 5 추출 스키마 | 온톨로지 v1(초안)과 인용문 위치 변환. `extraction/` | 초안 (file_pipeline 단독, 2026-11-03). 공통 계약은 8단계 비교 때 맞춤. 문서: `docs/작업이력/02-스키마-온톨로지/온톨로지-v1.md` |
-| 6 LLM 추출 | 청크 → 혜택·조건·한도·관계와 원문 근거 | 실행기·이어하기 배치·표본 선정·크기 추정·지연 OpenAI 어댑터·드라이런/재집계 CLI 구현. 노트북 20개 시범 hard 실패 없는 결과 13개. 데스크탑 별도 15개 표본은 추출 성공 10, 빈 추출 2, 호출 실패 3. 7단계 검증 준비 부분 완료 |
-| 7 검증 | 추출 결과 → 공통 형식 결과 A | 예정 |
+| 단계 | 이 폴더와의 관계 |
+|---|---|
+| 1~7 | `file_pipeline`이 수집 자료의 인덱싱, 원문 추적, 청킹, 추출, 결과 A 검증을 맡는다. |
+| 8 | 결과 A와 `db_pipeline` 결과 B를 공동 기준으로 비교한다. |
+| 9 | 정규화·통합은 아직 연결되지 않았다. `graph/normalize_values.py`는 보조 모듈이다. |
+| 10~11 | 이 폴더의 `graph/`와 `chat/`가 지식그래프 및 챗봇 경로를 제공한다. |
+
+**코드 소유 경계:** `file_pipeline/` 안의 코드는 사용자 소유다. `src/graphrag_chatbot/`은 팀 코드이며, 이 폴더에서는 어댑터를 통해 연결해서만 사용한다. 팀 폴더의 코드를 이 폴더로 복사하거나 직접 수정하는 범위가 아니다.
 
 ## 3. 폴더 구성
 
-```
-file_pipeline/
-├── README.md                이 문서
-├── __init__.py
-├── sql/                     파일 기반 파이프라인용 PostgreSQL 스키마 명세
-│   └── card_benefit_schema.sql
-├── traceability.py          3단계: PDF 1개 → 쪽별 원문 + 청크 위치 JSON
-├── chunking/                4단계: 쪽 원문을 청크로 자름
-│   ├── split.py             쪽 원문 + 제목 위치 → 자를 조각 (PDF를 열지 않는 순수 함수)
-│   ├── headings.py          글자 크기로 제목 줄을 찾아 쪽 원문 안의 위치로 변환, 표 안 제목은 제외
-│   ├── build.py             쪽 → 청크 변환과 "이어 붙이면 원문과 같은가" 검증
-│   └── cli.py               카드사 1곳의 청크 JSON 생성 (실행 진입점)
-├── graph/                   지식그래프 CSV 변환·적재 및 논리 설계
-│   ├── README.md            엔티티·근거 규칙·CSV 적재 계약
-│   ├── queries.sql          fp_ 테이블만 대상으로 하는 읽기 전용 질의 예시
-│   ├── schema.sql           public fp_ 테이블 및 관계 검사 초안
-│   ├── export.py            추출 결과와 인덱스 → 검증된 fp_ CSV
-│   └── load.py              기본 드라이런, 명시적 실행 옵션의 CSV 적재기
-├── extraction/              5~6단계: 추출 스키마, 청크 실행기와 시범 준비 도구
-│   ├── schema.py            온톨로지 v1 데이터 구조 (위치 숫자는 받지 않음)
-│   ├── evidence.py          인용문 → 쪽 원문 위치 변환
-│   ├── prompt.py            청크 1개용 프롬프트 (필드·허용값은 schema.py에서 읽음)
-│   ├── ambiguity_report.py  모호 인용문 길이·반복 횟수·섹션 분석 (인용문 원문 미기록)
-│   ├── runner.py            프롬프트 → 응답 파싱 → 스키마 검증 → 인용문 위치 부여, 실패는 구조화해 기록
-│   ├── batch.py             청크 JSON 순회, 청크별 결과·문서 요약 저장 (예외 격리, 이어하기). 출력은 저장소 밖
-│   ├── parallel.py          청크 동시 실행(최대 16), 지수 재시도와 진행 숫자 출력
-│   ├── verify.py            저장 결과의 숫자·관계 연결·인용 위치 신호와 한도 shared 키워드 불일치 점검 (판정 아님)
-│   ├── result_a.py          7단계 Result A JSONL 초안 (8단계 counterpart 정렬 대기)
-│   ├── locate_diagnose.py   인용 위치 실패를 원문 없이 유형 분류
-│   ├── relocate.py          공백·문장부호 차이만 유일 일치 시 위치 재탐색
-│   ├── variance.py          반복 결과의 항목 수·집합·성공 편차 비교
-│   ├── consensus.py         반복 결과에서 k회 이상 합의한 항목·관계만 새 결과로 저장
-│   ├── eval_runs.py         라벨별 반복·프롬프트 결과의 숫자 지표와 변동 범위 비교
-│   ├── table_density_report.py 청크 텍스트의 거친 표 밀도와 추출 지표 비교
-│   ├── enum_violation_report.py  스키마 실패의 enum 경로·값 집계 (원문형 값은 숨김)
-│   ├── prompt_version_compare.py 프롬프트별 항목·근거 개수와 청크 방향 비교
-│   ├── pilot_run.py         선택·추정·실행·요약·검증·그래프 내보내기 흐름 묶음
-│   ├── diagnose.py          빈 추출 결과를 제목·길이·키워드 수로 분류 (원문은 출력하지 않음)
-│   ├── review_sheet.py      추출 성공 청크 N개를 사람이 원문과 대조하는 마크다운 대조표로 만듦 (원문 포함, 저장소 밖에만 저장)
-│   ├── review_auto_audit.py 기존 대조표의 인용·위치·숫자 근거를 오프라인 점검 (의미 판정 아님, 원문 없는 JSON 보고서)
-│   ├── review_tally.py      사람이 채운 대조표의 표시 수와 검토 정확도 비율 집계 (원문은 출력하지 않음)
-│   ├── pilot.py             OCR 제외 텍스트 PDF에서 길이·문서·표·규칙 신호를 고려해 결정적 표본 선정, 프롬프트 크기 추정
-│   ├── llm_adapter.py       LangChain OpenAI 호출 어댑터. SDK 지연 import, 키 환경변수 이름 인자
-│   └── cli.py               select / estimate / summarize / run / verify / pilot-run / diagnose-locate / relocate / variance / result-a 진입점
-├── doc_index/               2단계(+3단계 일괄 실행): 분류·인덱스
-│   ├── core.py              인덱스 만드는 핵심 규칙 (대표 선정, 공유 문서, 연결 표)
-│   ├── measure.py           PDF 1개의 해시·쪽수·글자 수 측정
-│   ├── schema.py            열 이름과 허용 값
-│   ├── cli.py               카드사 1곳의 인덱스 생성 (실행 진입점)
-│   ├── batch.py             인덱스의 대표 문서를 traceability로 일괄 변환
-│   ├── tables.py            표 보조본 추출 (아직 어디에서도 부르지 않음)
-│   └── adapters/            카드사별 원본 manifest → 공통 항목 변환 (hana.py, woori.py)
-├── notebooks/               눈으로 확인하는 보조용. 청킹 탐색 노트북만 프로토타입 로직 포함. 커밋 전 출력 삭제
-│   ├── README.md                노트북 용도·보조 Python 코드 호출 관계·Mermaid 흐름
-│   ├── doc_index_check.ipynb    인덱스 결과 점검
-│   ├── chunking_explore.ipynb   청킹 기준 탐색
-│   ├── data_modify.ipynb        PDF 1개의 페이지 이미지와 추출 텍스트를 보는 노트북
-│   └── extraction_audit.ipynb   저장된 추출 결과의 자동 신호·원문을 보는 보조 노트북
-├── pilot_hana_15299/        하나 1건으로 원문 추적을 시험한 기록 (참고용)
-│   ├── 08_파일럿_결과.md  08_표본대조_결과.md  09_마감.md  check_sheet.md
-│   └── traceability.json
-```
+| 경로 | 역할 |
+|---|---|
+| `doc_index/` | 카드사 manifest를 공통 인덱스로 바꾸고 대표 문서를 선정하며, 배치 원문 추적을 시작한다. |
+| `chunking/` | 쪽 원문과 제목 위치를 청크로 나누고 위치 보존을 확인한다. |
+| `extraction/` | 추출 스키마·근거 위치·LLM 실행기와 시범, 평가·검토·진단 도구를 둔다. 자세한 분류는 [extraction README](extraction/README.md). |
+| `graph/` | 추출 결과를 그래프 형식으로 변환·검증·적재하고 그래프 보조 질의를 제공한다. |
+| `chat/` | 그래프 챗봇의 두 실행 화면, 팀 코드 어댑터, 평가·검수 도구를 둔다. 자세한 분류는 [chat README](chat/README.md). |
+| `ledger/` | 파이프라인 작업 장부의 계획·상태 구조를 제공한다. |
+| `notebooks/` | 모듈을 눈으로 점검하는 보조 노트북과 점검 목록을 둔다. 출력은 비운 상태로 유지한다. |
+| `sql/` | 파일 기반 파이프라인용 PostgreSQL 스키마 참고 명세를 둔다. 실행 코드가 자동 적용하지 않는다. |
+| 최상위 `traceability.py` | PDF 한 건에서 쪽별 원문과 청크 위치 데이터를 만든다. |
+| 최상위 `__init__.py`, `README.md` | 패키지 표시와 이 폴더의 안내 문서다. |
+
+`extraction/pilot_hana_15299/`에는 하나카드 문서 한 건의 추적성 파일럿 결과와 대조 기록을 둔다. 최상위 `fp_schema.md`는 현재 비어 있어 위치를 유지한다.
 
 `sql/card_benefit_schema.sql` 은 전달받은 카드 문서·AI 추출·혜택 스키마 명세를 PostgreSQL DDL로 옮긴 참고 파일이다. 현재 `file_pipeline` 실행 코드는 JSON 파일을 사용하며 이 SQL을 자동 적용하지 않는다.
 
@@ -187,30 +139,48 @@ file_pipeline/
 
 ## 4. 모듈 호출 관계
 
-화살표는 "가져다 쓴다"이다. `tables.py`는 아직 연결되지 않았다.
+화살표는 모듈 간 주요 호출 관계다.
 
 ```mermaid
 flowchart TD
-    CLI[doc_index/cli.py] --> AD[adapters/hana.py, woori.py]
-    CLI --> CORE[core.py]
-    CLI --> MEA[measure.py]
-    CLI --> SCH[schema.py]
-    CORE --> SCH
-    BATCH[doc_index/batch.py] --> TR[traceability.py]
+    DI[doc_index/cli.py] --> AD[doc_index/adapters]
+    DI --> CORE[doc_index/core.py]
+    CORE --> SCH[doc_index/schema.py]
+    BATCH[doc_index/batch.py] --> TRACE[traceability.py]
     CK[chunking/cli.py] --> BATCH
-    CK --> BLD[chunking/build.py]
-    CK --> HD[chunking/headings.py]
-    BLD --> SPL[chunking/split.py]
-    TR --> DR[common/document_reader]
-    TAB[tables.py]:::loose
-    classDef loose fill:#eee,stroke:#999,stroke-dasharray: 4
+    CK --> BUILD[chunking/build.py]
+    BUILD --> SPLIT[chunking/split.py]
+    BUILD --> HEAD[chunking/headings.py]
+    ECLI[extraction/cli.py] --> PILOT[extraction/pilot.py]
+    ECLI --> BATCHX[extraction/batch.py]
+    BATCHX --> PAR[extraction/parallel.py]
+    BATCHX --> RUN[extraction/runner.py]
+    RUN --> PROMPT[extraction/prompt.py]
+    RUN --> ES[extraction/schema.py]
+    RUN --> EVID[extraction/evidence.py]
+    ECLI --> CHECK[verify / diagnose / report tools]
+    EX[graph/export.py] --> ES
+    LOAD[graph/load.py] --> EX
+    CHAT[chat/run_fp_chat.py] --> PATCH[chat/fp_chat_patch.py]
+    CHAT2[chat/run_fp_chat_v2.py] --> UI[chat/app_v2.py]
+    CHAT2 --> PATCH
+    PATCH --> TEAM[src/graphrag_chatbot<br/>team code]
+    PATCH --> DB[chat/db_pool + fp_chat]
+    EVAL[chat evaluation and review tools] --> CHAT
 ```
-
-`core.py` 안에서 일어나는 일의 순서는 `docs/작업이력/01-문서인덱스-청킹/core-단순화-계획.md`의 흐름도에 있다.
 
 ## 5. 실행 방법
 
 저장소 루트에서 실행한다. PDF 라이브러리가 준비된 uv 환경이 필요하다.
+
+### 챗봇 화면
+
+```bash
+PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/payment_card/file_pipeline/chat/run_fp_chat.py
+PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/payment_card/file_pipeline/chat/run_fp_chat_v2.py
+```
+
+`run_fp_chat.py`는 팀 화면에 사용자 연결부를 적용하고, `run_fp_chat_v2.py`는 사용자 소유 v2 화면을 실행한다. `chat/app_v2.py`는 직접 실행하지 않는다. 직접 실행하면 팀 `rag` 모듈의 Anthropic 임포트 오류가 발생한다.
 
 ```bash
 # 2단계: 카드사 1곳의 인덱스 만들기

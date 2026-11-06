@@ -30,7 +30,7 @@
 
 **Files:**
 - Create: `src/card_benefit/payment_card/file_pipeline/__init__.py`
-- Create: `src/card_benefit/payment_card/file_pipeline/traceability.py`
+- Create: `src/card_benefit/payment_card/file_pipeline/doc_index/traceability.py`
 - Create: `src/card_benefit/payment_card/tests/test_file_pipeline_traceability.py`
 - Modify: `src/card_benefit/payment_card/file_pipeline/README.md`
 

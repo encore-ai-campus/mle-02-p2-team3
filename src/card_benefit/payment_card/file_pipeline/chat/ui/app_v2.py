@@ -21,12 +21,7 @@ if str(HERE.parent) not in sys.path:
 import rag
 from ui import ui_v2
 
-st.set_page_config(page_title="카드 혜택 챗봇", layout="centered")
-
 ss = st.session_state
-ss.setdefault("v2_conversations", {})
-ss.setdefault("v2_current", None)
-ss.setdefault("v2_developer_mode", False)
 
 
 def _render_sources(sources: list[dict]) -> None:
@@ -207,38 +202,52 @@ def _run_turn(question: str, conversation: dict) -> None:
     _write_qa_log(question, str(answer), subgraph, selected_entities, latency_ms, {"usage": usage})
 
 
-with st.sidebar:
-    if st.button("새 대화", use_container_width=True):
-        ss.v2_current = None
-        st.rerun()
-    st.toggle("개발자 모드", key="v2_developer_mode")
+def render(*, key_prefix: str = "v2") -> None:
+    """화면 본문을 그린다. 페이지 설정은 호출한 쪽(호스트 또는 단독 실행)이 맡는다.
 
-st.markdown("<h2 style='margin-bottom:0.2rem'>카드 혜택 도우미</h2>", unsafe_allow_html=True)
-st.caption("하나·우리카드 신용카드 상품설명서 기준")
+    key_prefix 는 아직 쓰지 않는다(키 네임스페이스는 다음 단계에서 적용).
+    """
+    ss.setdefault("v2_conversations", {})
+    ss.setdefault("v2_current", None)
+    ss.setdefault("v2_developer_mode", False)
 
-conversation = ss.v2_conversations.get(ss.v2_current)
-turns = conversation["turns"] if conversation else []
-if not turns:
-    st.write("카드 혜택이나 이용 조건을 질문해 주세요.")
-    columns = st.columns(2)
-    for index, example in enumerate(ui_v2.EXAMPLE_QUESTIONS):
-        if columns[index % 2].button(example, key=f"v2_example_{index}", use_container_width=True):
-            ss.v2_pending_question = example
+    with st.sidebar:
+        if st.button("새 대화", use_container_width=True):
+            ss.v2_current = None
+            st.rerun()
+        st.toggle("개발자 모드", key="v2_developer_mode")
 
-for index, turn in enumerate(turns):
-    _render_turn(turn, index)
+    st.markdown("<h2 style='margin-bottom:0.2rem'>카드 혜택 도우미</h2>", unsafe_allow_html=True)
+    st.caption("하나·우리카드 신용카드 상품설명서 기준")
 
-question = st.chat_input("카드 혜택을 질문해 보세요")
-pending = ss.pop("v2_pending_question", None)
-if question and question.strip():
-    pending = question.strip()
-if pending:
-    target = conversation or {"title": pending[:32], "turns": []}
-    _run_turn(pending, target)
+    conversation = ss.v2_conversations.get(ss.v2_current)
+    turns = conversation["turns"] if conversation else []
     if not turns:
-        conversation_id = uuid.uuid4().hex[:10]
-        ss.v2_conversations[conversation_id] = target
-        ss.v2_current = conversation_id
-    else:
-        ss.v2_conversations[ss.v2_current] = target
-    st.rerun()
+        st.write("카드 혜택이나 이용 조건을 질문해 주세요.")
+        columns = st.columns(2)
+        for index, example in enumerate(ui_v2.EXAMPLE_QUESTIONS):
+            if columns[index % 2].button(example, key=f"v2_example_{index}", use_container_width=True):
+                ss.v2_pending_question = example
+
+    for index, turn in enumerate(turns):
+        _render_turn(turn, index)
+
+    question = st.chat_input("카드 혜택을 질문해 보세요")
+    pending = ss.pop("v2_pending_question", None)
+    if question and question.strip():
+        pending = question.strip()
+    if pending:
+        target = conversation or {"title": pending[:32], "turns": []}
+        _run_turn(pending, target)
+        if not turns:
+            conversation_id = uuid.uuid4().hex[:10]
+            ss.v2_conversations[conversation_id] = target
+            ss.v2_current = conversation_id
+        else:
+            ss.v2_conversations[ss.v2_current] = target
+        st.rerun()
+
+
+if __name__ == "__main__":
+    st.set_page_config(page_title="카드 혜택 챗봇", layout="centered")
+    render(key_prefix="v2")

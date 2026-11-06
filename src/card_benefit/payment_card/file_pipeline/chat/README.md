@@ -8,7 +8,8 @@
 |---|---|
 | `__init__.py` | 챗봇 관련 모듈을 패키지로 표시한다. |
 | `run_fp_chat.py` | Streamlit 진입점으로 팀 화면을 띄우고 `fp_chat` 연결부와 OpenAI 어댑터를 적용한다. |
-| `run_fp_chat_v2.py` | 사용자 소유 v2 화면 진입점으로 기존 OpenAI 및 그래프 어댑터를 적용한다. |
+| `run_fp_chat_v2.py` | 사용자 소유 v2 화면 진입점으로 페이지 설정 후 `panel.py`의 백엔드 준비와 화면 렌더를 호출한다. |
+| `panel.py` | 호스트용 공개 접점으로 `prepare_backend()`와 `render()`를 제공한다. |
 | `fp_chat_patch.py` | 팀 GraphRAG 모듈에 `fp_chat` 조회, Q/A 기록, 선택적 하위 그래프 처리를 연결하는 옵트인 어댑터다. |
 | `openai_llm_patch.py` | 팀 챗봇 LLM 호출을 OpenAI로 바꾸는 지연 적용 어댑터이며 모듈 임포트만으로 API를 호출하지 않는다. |
 | `qa_log.py` | Q/A, 지연시간, 답변 형식·숫자 확인 결과를 로컬 진단 기록으로 구성하고 쓴다. |

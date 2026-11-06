@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from payment_card.file_pipeline.traceability import create_traceability, write_traceability
+from payment_card.file_pipeline.doc_index.traceability import create_traceability, write_traceability
 
 
 class FakeDocumentReader:
@@ -49,7 +49,7 @@ class TraceabilityTests(unittest.TestCase):
         ]
 
     def make_traceability(self, **options):
-        with patch("payment_card.file_pipeline.traceability.DocumentReader", FakeDocumentReader):
+        with patch("payment_card.file_pipeline.doc_index.traceability.DocumentReader", FakeDocumentReader):
             return create_traceability(self.pdf, **options)
 
     def test_preserves_pages_and_exact_one_based_chunk_span(self):

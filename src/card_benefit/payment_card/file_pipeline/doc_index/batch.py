@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 import sys
 
-from ..traceability import create_traceability, write_traceability
+from .traceability import create_traceability, write_traceability
 
 # 이 역할의 대표 문서만 처리한다. 약관·미분류는 대상이 아니다.
 TARGET_ROLES = {"product_guide", "web_capture", "brand_service"}

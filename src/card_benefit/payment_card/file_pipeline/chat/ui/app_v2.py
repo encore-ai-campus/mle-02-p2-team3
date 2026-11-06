@@ -21,7 +21,9 @@ if str(HERE.parent) not in sys.path:
 import rag
 from ui import ui_v2
 
-ss = st.session_state
+
+def _k(prefix: str, name: str) -> str:
+    return f"{prefix}_{name}"
 
 
 def _render_sources(sources: list[dict]) -> None:
@@ -52,7 +54,7 @@ def _render_graph(subgraph: dict) -> None:
         st.caption("근거 그래프를 표시하지 못했습니다.")
 
 
-def _render_turn(turn: dict, index: int) -> None:
+def _render_turn(turn: dict, index: int, key_prefix: str) -> None:
     with st.chat_message("user"):
         st.write(turn["question"])
     with st.chat_message("assistant"):
@@ -62,7 +64,7 @@ def _render_turn(turn: dict, index: int) -> None:
         table = turn.get("compare_table")
         if table:
             st.table(table["rows"])
-        if ss.v2_developer_mode:
+        if st.session_state[_k(key_prefix, "developer_mode")]:
             with st.expander("검색 과정", expanded=False):
                 st.write("분석 질문:", turn.get("analysis_question", turn["question"]))
                 st.write("선택 엔티티:", ", ".join(turn.get("selected_entities", [])) or "자료에서 확인하지 못함")
@@ -203,37 +205,40 @@ def _run_turn(question: str, conversation: dict) -> None:
 
 
 def render(*, key_prefix: str = "v2") -> None:
-    """화면 본문을 그린다. 페이지 설정은 호출한 쪽(호스트 또는 단독 실행)이 맡는다.
+    """화면 본문을 그린다. 페이지 설정은 호출한 쪽(호스트 또는 단독 실행)이 맡는다."""
+    ss = st.session_state
+    conversations_key = _k(key_prefix, "conversations")
+    current_key = _k(key_prefix, "current")
+    ss.setdefault(conversations_key, {})
+    ss.setdefault(current_key, None)
+    ss.setdefault(_k(key_prefix, "developer_mode"), False)
 
-    key_prefix 는 아직 쓰지 않는다(키 네임스페이스는 다음 단계에서 적용).
-    """
-    ss.setdefault("v2_conversations", {})
-    ss.setdefault("v2_current", None)
-    ss.setdefault("v2_developer_mode", False)
-
-    with st.sidebar:
-        if st.button("새 대화", use_container_width=True):
-            ss.v2_current = None
-            st.rerun()
-        st.toggle("개발자 모드", key="v2_developer_mode")
+    with st.container():
+        new_chat_column, developer_mode_column = st.columns(2)
+        with new_chat_column:
+            if st.button("새 대화", key=_k(key_prefix, "new_chat"), use_container_width=True):
+                ss[current_key] = None
+                st.rerun()
+        with developer_mode_column:
+            st.toggle("개발자 모드", key=_k(key_prefix, "developer_mode"))
 
     st.markdown("<h2 style='margin-bottom:0.2rem'>카드 혜택 도우미</h2>", unsafe_allow_html=True)
     st.caption("하나·우리카드 신용카드 상품설명서 기준")
 
-    conversation = ss.v2_conversations.get(ss.v2_current)
+    conversation = ss[conversations_key].get(ss[current_key])
     turns = conversation["turns"] if conversation else []
     if not turns:
         st.write("카드 혜택이나 이용 조건을 질문해 주세요.")
         columns = st.columns(2)
         for index, example in enumerate(ui_v2.EXAMPLE_QUESTIONS):
-            if columns[index % 2].button(example, key=f"v2_example_{index}", use_container_width=True):
-                ss.v2_pending_question = example
+            if columns[index % 2].button(example, key=_k(key_prefix, f"example_{index}"), use_container_width=True):
+                ss[_k(key_prefix, "pending_question")] = example
 
     for index, turn in enumerate(turns):
-        _render_turn(turn, index)
+        _render_turn(turn, index, key_prefix)
 
-    question = st.chat_input("카드 혜택을 질문해 보세요")
-    pending = ss.pop("v2_pending_question", None)
+    question = st.chat_input("카드 혜택을 질문해 보세요", key=_k(key_prefix, "chat_input"))
+    pending = ss.pop(_k(key_prefix, "pending_question"), None)
     if question and question.strip():
         pending = question.strip()
     if pending:
@@ -241,10 +246,10 @@ def render(*, key_prefix: str = "v2") -> None:
         _run_turn(pending, target)
         if not turns:
             conversation_id = uuid.uuid4().hex[:10]
-            ss.v2_conversations[conversation_id] = target
-            ss.v2_current = conversation_id
+            ss[conversations_key][conversation_id] = target
+            ss[current_key] = conversation_id
         else:
-            ss.v2_conversations[ss.v2_current] = target
+            ss[conversations_key][ss[current_key]] = target
         st.rerun()
 
 

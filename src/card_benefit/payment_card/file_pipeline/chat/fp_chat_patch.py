@@ -60,6 +60,24 @@ def _rank_candidates(rows, tokens, limit: int = 500) -> dict:
     return {name: {"name": name, "label": label} for _, _, name, label in scored[:limit]}
 
 
+def _selected_benefit_ids(subgraph, selected_entities):
+    """Resolve selected Card/Benefit names to Benefit ids in the retrieved graph."""
+    nodes = list((subgraph or {}).get("nodes") or [])
+    selected = {str(item) for item in (selected_entities or [])}
+    starts = [node for node in nodes if str(node.get("name", "")) in selected
+              and node.get("label") in {"Card", "Benefit"}]
+    benefit_ids = {str(node.get("id")) for node in starts if node.get("label") == "Benefit"
+                   and node.get("id") is not None}
+    card_ids = {str(node.get("id")) for node in starts if node.get("label") == "Card"
+                and node.get("id") is not None}
+    for edge in (subgraph or {}).get("edges") or []:
+        if edge.get("type") == "OFFERS" and str(edge.get("source")) in card_ids:
+            target = str(edge.get("target"))
+            if any(str(node.get("id")) == target and node.get("label") == "Benefit" for node in nodes):
+                benefit_ids.add(target)
+    return benefit_ids
+
+
 def _make_list_entities(db, schema: str):
     def list_entities(question: str | None = None) -> list[dict]:
         q = question if question is not None else _CURRENT_QUESTION.get()
@@ -188,6 +206,18 @@ def apply(schema: str = "fp_chat"):
                 usage = {key: max(0, usage_after.get(key, 0) - (usage_before or {}).get(key, 0))
                          for key in ("prompt_tokens", "completion_tokens", "cost_usd")}
             subgraph = result.get("subgraph") or {}
+            try:
+                try:
+                    from .answer_check import check_answer_numbers
+                except ImportError:
+                    from answer_check import check_answer_numbers
+                seed_benefit_ids = _selected_benefit_ids(subgraph, capture["selected_entities"])
+                number_check = check_answer_numbers(
+                    str(result.get("answer", "")), subgraph, seed_benefit_ids=seed_benefit_ids,
+                )
+            except Exception:
+                number_check = {"error": "check_failed"}
+                print("FP_NUMBER_CHECK_ERROR:check_failed", file=sys.stderr)
             refs, evidence_error = [], None
             fp_ids = [str(n.get("props", {}).get("fp_id")) for n in subgraph.get("nodes", [])
                       if n.get("props", {}).get("fp_id") and not str(n["props"]["fp_id"]).startswith("doc:")]
@@ -211,6 +241,7 @@ def apply(schema: str = "fp_chat"):
                     latency_ms=stages, answer_format_version="legacy" if legacy else "v2",
                     graph_schema=schema, source_refs=refs, evidence_error=evidence_error,
                     app_version=os.environ.get("GIT_COMMIT") or os.environ.get("GITHUB_SHA"),
+                    number_check=number_check,
                 )
                 record["refusal"] = answer_eval._refusal(str(result.get("answer", "")))
                 qa_log.write_record(record)

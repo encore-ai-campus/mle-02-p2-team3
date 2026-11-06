@@ -48,6 +48,15 @@ def _overlaps(start, end, other_start, other_end, overlap):
     return shared >= 1 if overlap == "any" else shared * 2 >= end - start + 1
 
 
+def _span_gap(start, end, other_start, other_end):
+    """Return the number of characters strictly between two inclusive spans."""
+    if end < other_start:
+        return other_start - end - 1
+    if other_end < start:
+        return start - other_end - 1
+    return 0
+
+
 def _node_page(node_id):
     """Get the page embedded by the standard ``<sha>-pNNNN-cNN`` chunk id."""
     match = re.search(r"-p(\d+)-c\d+", node_id)
@@ -117,16 +126,19 @@ def _labels(labels_path, pages):
     return labels
 
 
-def evaluate(labels_path, pool_path, graph_dirs, data_root, output_dir, overlap="any"):
+def evaluate(labels_path, pool_path, graph_dirs, data_root, output_dir, overlap="any", near_chars=30):
     """Write summary.json and misses.csv and return the JSON-compatible summary."""
     if overlap not in {"any", "50"}:
         raise ValueError("--overlap은 any 또는 50 이어야 합니다.")
+    if near_chars < 0:
+        raise ValueError("--near-chars는 0 이상이어야 합니다.")
     output = safe_tmp(output_dir)
     nodes, edges, evidence = _read_graph(graph_dirs)
     pages = _pool_pages(pool_path, data_root)
     labels = _labels(labels_path, pages)
     prefixes = {node_id[:16] for node_id in nodes}
     by_kind_page = defaultdict(list)
+    by_document_page = defaultdict(list)
     nonlocated_page = defaultdict(bool)
     for node_id, kind in nodes.items():
         for item in evidence.get(node_id, []):
@@ -139,7 +151,9 @@ def evaluate(labels_path, pool_path, graph_dirs, data_root, output_dir, overlap=
             key = (kind, item["doc_sha256"], page)
             if item.get("quote_status") == "located":
                 try:
-                    by_kind_page[key].append((node_id, int(item["start_pos"]), int(item["end_pos"])))
+                    span = (node_id, int(item["start_pos"]), int(item["end_pos"]))
+                    by_kind_page[key].append(span)
+                    by_document_page[(item["doc_sha256"], page)].append((kind, *span))
                 except (TypeError, ValueError):
                     pass
             else:
@@ -163,7 +177,31 @@ def evaluate(labels_path, pool_path, graph_dirs, data_root, output_dir, overlap=
         label["document_in_graph"], label["hit"] = in_graph, bool(hits)
         matched[label["id"]] = set(hits)
         if reason:
-            misses.append({"id": label["id"], "kind": label["kind"], "pid": label["pid"], "issuer": label["issuer"], "reason": reason})
+            detail, other_kind, nearest_gap = "", "", ""
+            if reason == "node_on_page_no_overlap":
+                same_kind_gaps = [
+                    _span_gap(label["start"], label["end"], start, end)
+                    for _, start, end in candidates
+                ]
+                nearest = min(same_kind_gaps)
+                if nearest <= near_chars:
+                    detail = "boundary_near"
+                else:
+                    other_kind_candidates = []
+                    for kind, _, start, end in by_document_page.get((label["sha"], label["page"]), []):
+                        if kind == label["kind"]:
+                            continue
+                        gap = _span_gap(label["start"], label["end"], start, end)
+                        if gap <= near_chars:
+                            other_kind_candidates.append((gap, kind))
+                    if other_kind_candidates:
+                        detail = "wrong_kind_nearby"
+                        other_kind = min(other_kind_candidates)[1]
+                    else:
+                        detail = "true_missing_candidate"
+                        nearest_gap = str(nearest)
+            misses.append({"id": label["id"], "kind": label["kind"], "pid": label["pid"], "issuer": label["issuer"],
+                           "reason": reason, "detail": detail, "other_kind": other_kind, "nearest_gap": nearest_gap})
     label_bases = {}
     for name, subset in (("all", labels), ("document_in_graph", [row for row in labels if row["document_in_graph"]])):
         label_bases[name] = {"by_kind": _metric(subset, "kind", KINDS),
@@ -188,14 +226,21 @@ def evaluate(labels_path, pool_path, graph_dirs, data_root, output_dir, overlap=
         for _, start, end in spans:
             if not any(_overlaps(label["start"], label["end"], start, end, overlap) for label in page_labels):
                 unlabeled[kind] += 1
+    details = ("boundary_near", "wrong_kind_nearby", "true_missing_candidate")
+    near_hits = {kind: sum(row["kind"] == kind and row["detail"] == "boundary_near" for row in misses) for kind in KINDS}
+    miss_detail_counts = {
+        detail: {kind: sum(row["kind"] == kind and row["detail"] == detail for row in misses) for kind in KINDS}
+        for detail in details
+    }
     summary = {"overlap": overlap, "labels": label_bases, "relations": relation_bases,
                "unlabeled_nodes": {kind: unlabeled[kind] for kind in KINDS},
+               "near_hits": near_hits, "miss_detail_counts": miss_detail_counts,
                "miss_reason_counts": dict(sorted(Counter(row["reason"] for row in misses).items())),
-               "note": "unlabeled_nodes는 정밀도 아님, 라벨 표본 한계"}
+               "note": "near는 hit으로 계산하지 않음 (near 는 hit 로 세지 않음), unlabeled_nodes는 정밀도 아님, 라벨 표본 한계"}
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with (output / "misses.csv").open("w", encoding="utf-8", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["id", "kind", "pid", "issuer", "reason"])
+        writer = csv.DictWriter(stream, fieldnames=["id", "kind", "pid", "issuer", "reason", "detail", "other_kind", "nearest_gap"])
         writer.writeheader(); writer.writerows(misses)
     print(_table(summary))
     return summary
@@ -208,6 +253,7 @@ def _table(summary):
             recall = "-" if metric["recall"] is None else f"{metric['recall']:.3f}"
             lines.append(f"{basis} | {kind} | {metric['hits']}/{metric['total']} | {recall} | {metric['sample_note'] or ''}")
     lines.append("unlabeled_nodes: " + ", ".join(f"{kind}={count}" for kind, count in summary["unlabeled_nodes"].items()))
+    lines.append("near_hits: " + ", ".join(f"{kind}={count}" for kind, count in summary["near_hits"].items()))
     lines.append("정밀도 아님, 라벨 표본 한계")
     return "\n".join(lines)
 
@@ -217,8 +263,9 @@ def main(argv=None):
     parser.add_argument("--labels", required=True); parser.add_argument("--pool", required=True)
     parser.add_argument("--graph-dir", action="append", required=True); parser.add_argument("--data-root", required=True)
     parser.add_argument("--output-dir", required=True); parser.add_argument("--overlap", choices=("any", "50"), default="any")
+    parser.add_argument("--near-chars", type=int, default=30)
     args = parser.parse_args(argv)
-    evaluate(args.labels, args.pool, args.graph_dir, args.data_root, args.output_dir, args.overlap)
+    evaluate(args.labels, args.pool, args.graph_dir, args.data_root, args.output_dir, args.overlap, args.near_chars)
     return 0
 
 

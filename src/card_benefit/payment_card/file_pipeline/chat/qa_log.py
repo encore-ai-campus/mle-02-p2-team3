@@ -39,7 +39,7 @@ def ungrounded_numbers(answer: str, evidence_text: str) -> list[str]:
 def build_record(*, question, answer, result, session_id=None, model=None, usage=None,
                  latency_ms=None, answer_format_version=ANSWER_FORMAT_VERSION,
                  graph_schema="fp_chat", source_refs=None, evidence_error=None,
-                 app_version=None) -> dict:
+                 app_version=None, number_check=None) -> dict:
     subgraph = result.get("subgraph") or {}
     nodes = list(subgraph.get("nodes") or [])
     retrieved_ids = [str(node.get("id")) for node in nodes if node.get("id") is not None][:200]
@@ -57,6 +57,26 @@ def build_record(*, question, answer, result, session_id=None, model=None, usage
         + [" ".join(str(edge.get(k, "")) for k in ("source", "type", "target"))
            for edge in subgraph.get("edges", [])]
     )
+    if number_check is None:
+        try:
+            try:
+                from .answer_check import check_answer_numbers
+            except ImportError:
+                from answer_check import check_answer_numbers
+            number_check = check_answer_numbers(str(answer), subgraph)
+        except Exception:
+            number_check = {"error": "check_failed"}
+            print("FP_NUMBER_CHECK_ERROR:check_failed", file=sys.stderr)
+    if not isinstance(number_check, dict) or "error" in number_check:
+        number_check_summary = {"error": "check_failed"}
+    else:
+        counts = number_check.get("counts") or {}
+        number_check_summary = {
+            "scope_unknown": bool(number_check.get("scope_unknown")),
+            "counts": {key: int(counts.get(key, 0)) for key in
+                       ("scoped_grounded", "elsewhere_only", "ungrounded", "whole_subgraph_grounded")},
+            "elsewhere_only": list(number_check.get("elsewhere_only") or []),
+        }
     record = {
         "id": str(uuid.uuid4()),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -79,6 +99,7 @@ def build_record(*, question, answer, result, session_id=None, model=None, usage
         "run_ids": runs,
         "refusal": answer_eval._refusal(str(answer)),
         "ungrounded_numbers": ungrounded_numbers(str(answer), evidence_text),
+        "number_check": number_check_summary,
         "format_check": check_answer_format(str(answer)),
         "user_feedback": None,
         "app_version": app_version,

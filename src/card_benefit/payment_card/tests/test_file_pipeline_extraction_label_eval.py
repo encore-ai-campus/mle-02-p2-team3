@@ -80,3 +80,50 @@ def test_evaluate_rejects_output_outside_tmp(tmp_path):
     evaluate, labels, pool, data, graph = _inputs(tmp_path)
     with pytest.raises(ValueError, match="/tmp"):
         evaluate(labels, pool, [f"issuer={graph}"], data, Path(__file__).parent / "unsafe")
+
+
+def _evaluate_single_label(tmp_path, start, end, kind="Limit", near_chars=30):
+    evaluate, labels, pool, data, graph = _inputs(tmp_path)
+    _write_csv(labels, ["id", "issuer", "pid", "kind", "text", "start", "end", "parent_id", "relation"], [
+        {"id": "miss", "issuer": "issuer", "pid": "p1", "kind": kind,
+         "text": "SYNTHETIC", "start": start, "end": end, "parent_id": "", "relation": ""}
+    ])
+    summary = evaluate(labels, pool, [f"issuer={graph}"], data, tmp_path / "out", near_chars=near_chars)
+    with (tmp_path / "out" / "misses.csv").open(encoding="utf-8") as stream:
+        miss = next(csv.DictReader(stream))
+    return summary, miss
+
+
+def test_miss_analysis_classifies_boundary_gap_and_counts_near_hit(tmp_path):
+    summary, miss = _evaluate_single_label(tmp_path, 81, 90)
+    assert miss["detail"] == "boundary_near"
+    assert miss["other_kind"] == ""
+    assert miss["nearest_gap"] == ""
+    assert summary["near_hits"]["Limit"] == 1
+    assert summary["miss_detail_counts"]["boundary_near"]["Limit"] == 1
+    assert "near는 hit으로 계산하지 않음" in summary["note"]
+
+
+def test_miss_analysis_classifies_nearby_different_kind(tmp_path):
+    summary, miss = _evaluate_single_label(tmp_path, 10, 20)
+    assert miss["detail"] == "wrong_kind_nearby"
+    assert miss["other_kind"] == "Benefit"
+    assert miss["nearest_gap"] == ""
+    assert summary["miss_detail_counts"]["wrong_kind_nearby"]["Limit"] == 1
+
+
+def test_miss_analysis_classifies_true_missing_and_records_gap(tmp_path):
+    summary, miss = _evaluate_single_label(tmp_path, 271, 280)
+    assert miss["detail"] == "true_missing_candidate"
+    assert miss["other_kind"] == ""
+    assert miss["nearest_gap"] == "200"
+    assert summary["miss_detail_counts"]["true_missing_candidate"]["Limit"] == 1
+
+
+def test_near_threshold_changes_boundary_detail_without_changing_hit_judgement(tmp_path):
+    summary_near, miss_near = _evaluate_single_label(tmp_path / "near", 81, 90, near_chars=10)
+    summary_far, miss_far = _evaluate_single_label(tmp_path / "far", 81, 90, near_chars=9)
+    assert miss_near["detail"] == "boundary_near"
+    assert miss_far["detail"] == "true_missing_candidate"
+    assert summary_near["labels"]["all"]["by_kind"]["Limit"]["hits"] == 0
+    assert summary_far["labels"]["all"]["by_kind"]["Limit"]["hits"] == 0

@@ -78,6 +78,18 @@ def test_answer_metrics_normalize_refusal_and_classification():
     assert no_answer["no_answer_success"] is True and no_answer["expected_values"] == 0
 
 
+def test_refusal_recognizes_answer_format_v2_phrase_only_on_first_line():
+    # v2 답변 형식이 지시하는 '확인되지 않음' 표현이 거절로 인식되어야 한다(H1 에서 정답 없음 12회 중 9회를 놓쳤다).
+    answer_eval = load("answer_eval")
+    assert answer_eval._refusal("반려동물호텔 혜택은 확인되지 않음.\n※ 확인되지 않은 항목: 반려동물호텔")
+    assert answer_eval._refusal("그래프 근거로는 발렛파킹 여부가 확인되지 않습니다.")
+    # 꼬리말에만 있는 표현은 거절이 아니다(내용을 지어낸 답변이 통과하면 안 된다).
+    assert not answer_eval._refusal("캠핑장은 연 12회 무료입니다.\n\n※ 확인되지 않은 항목: 이용 기간")
+    # 기존 규칙은 그대로 동작한다.
+    assert answer_eval._refusal("정보가 없습니다")
+    assert not answer_eval._refusal("월 30만원까지 할인됩니다.")
+
+
 def test_dry_run_does_not_touch_db_or_openai(tmp_path, monkeypatch, capsys):
     run = load("run_eval")
     qfile = Path("/tmp/fp-answer-eval-dry-test.json")

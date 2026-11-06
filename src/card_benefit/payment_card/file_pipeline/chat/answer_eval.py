@@ -109,8 +109,16 @@ def _value_match(answer, expected, question_type=""):
     return False, None, None
 
 
+_FIRST_LINE_REFUSAL = ("확인되지 않", "확인하지 못")
+
+
 def _refusal(answer):
-    return any(pattern in answer for pattern in ("모르겠", "모릅니다", "알 수 없", "찾지 못", "찾을 수 없", "정보가 없", "없습니다", "없음", "없다", "확인할 수 없"))
+    if any(pattern in answer for pattern in ("모르겠", "모릅니다", "알 수 없", "찾지 못", "찾을 수 없", "정보가 없", "없습니다", "없음", "없다", "확인할 수 없")):
+        return True
+    # v2 답변 형식이 지시하는 '확인되지 않음' 표현은 첫 줄에 있을 때만 거절로 본다.
+    # 꼬리말('※ 확인되지 않은 항목: ...')만 붙이고 내용을 지어낸 답변이 통과하지 않게 하기 위해서다.
+    first_line = next((line for line in str(answer).splitlines() if line.strip()), "")
+    return any(pattern in first_line for pattern in _FIRST_LINE_REFUSAL)
 
 
 def judge_answer(question, result, selected_names):

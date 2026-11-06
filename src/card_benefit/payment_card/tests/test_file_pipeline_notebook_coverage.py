@@ -20,7 +20,7 @@ def _modules():
     modules = {
         path.stem
         for directory in (FILE_PIPELINE / "extraction", FILE_PIPELINE / "graph")
-        for path in directory.glob("*.py")
+        for path in directory.rglob("*.py")
         if path.name != "__init__.py"
     }
     # chat/ 모듈은 이름 충돌을 피하려고 'chat/<모듈>' 로 목록에 적는다.

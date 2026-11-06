@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from card_benefit.payment_card.file_pipeline.extraction.full_run_report import build_report
+from card_benefit.payment_card.file_pipeline.extraction.report.full_run_report import build_report
 
 
 def test_build_report_aggregates_without_serializing_source_text(tmp_path: Path):
@@ -57,7 +57,7 @@ def test_build_report_aggregates_without_serializing_source_text(tmp_path: Path)
 
 
 def test_cli_writes_json_outside_repository(tmp_path: Path):
-    from card_benefit.payment_card.file_pipeline.extraction.full_run_report import main
+    from card_benefit.payment_card.file_pipeline.extraction.report.full_run_report import main
 
     result_dir = tmp_path / "results"
     chunk_dir = tmp_path / "chunks"

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from payment_card.file_pipeline.extraction.empty_review import main, prepare, tally
+from payment_card.file_pipeline.extraction.review.empty_review import main, prepare, tally
 
 
 def _inputs(tmp_path):

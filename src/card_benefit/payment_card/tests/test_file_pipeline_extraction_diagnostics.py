@@ -10,7 +10,7 @@ from unittest.mock import patch
 from payment_card.file_pipeline.extraction.locate_diagnose import diagnose_locations
 from payment_card.file_pipeline.extraction.locate_diagnose import classify_quote
 from payment_card.file_pipeline.extraction.relocate import relocate_results
-from payment_card.file_pipeline.extraction.variance import compare_variance
+from payment_card.file_pipeline.extraction.eval.variance import compare_variance
 from payment_card.file_pipeline.extraction.llm_adapter import create_llm_call
 from payment_card.file_pipeline.extraction.cli import main
 

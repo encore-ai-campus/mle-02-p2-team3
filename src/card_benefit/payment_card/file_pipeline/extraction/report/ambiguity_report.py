@@ -7,7 +7,7 @@ from collections import Counter
 import json
 from pathlib import Path
 
-from .evidence import locate_quote
+from ..evidence import locate_quote
 
 SECTIONS = ("benefits", "conditions", "limits", "targets", "relations")
 LENGTH_BUCKETS = (("<=10", 0, 10), ("11-20", 11, 20), ("21-40", 21, 40), (">=41", 41, None))

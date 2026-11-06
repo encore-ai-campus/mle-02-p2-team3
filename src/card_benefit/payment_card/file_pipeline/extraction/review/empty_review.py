@@ -9,12 +9,12 @@ from pathlib import Path
 import re
 from typing import Any
 
-from .table_density_report import classify_density, density_score
+from ..report.table_density_report import classify_density, density_score
 
 SIGNALS = ("%", "할인", "적립", "캐시백", "원", "포인트", "면제")
 VERDICTS = ("정상", "놓침", "애매")
 MARK_RE = re.compile(r"\[\s*(x|X|✓|v| )\s*\]\s*(정상|놓침|애매)")
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 
 
 def _empty(row: dict[str, Any]) -> bool:

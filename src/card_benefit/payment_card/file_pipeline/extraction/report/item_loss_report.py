@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .table_density_report import _chunk_index, classify_density, density_score
-from .variance import GROUPS, _norm
+from ..eval.variance import GROUPS, _norm
 
 ENTITY_GROUPS = GROUPS[:-1]
 FIELDS = ("name", "text", "kind")
@@ -246,7 +246,7 @@ def main() -> None:
     parser.add_argument("--fuzzy-threshold", type=float, default=0.8)
     args = parser.parse_args()
     out = Path(args.output).expanduser().resolve()
-    repo = Path(__file__).resolve().parents[5]
+    repo = Path(__file__).resolve().parents[6]
     if out == repo or repo in out.parents:
         parser.error("출력 JSON은 저장소 밖이어야 합니다")
     report = build_report(args.base, args.compare, args.chunk_dir, fuzzy=args.fuzzy, fuzzy_threshold=args.fuzzy_threshold)

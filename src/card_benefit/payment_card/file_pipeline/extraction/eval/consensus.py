@@ -8,12 +8,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-from .schema import Extraction
+from ..schema import Extraction
 from .variance import GROUPS, _norm
 
 ENTITY_GROUPS = GROUPS[:-1]
 FIELDS = ("name", "text", "kind")
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 
 
 def _external_path(value: str | Path) -> Path:

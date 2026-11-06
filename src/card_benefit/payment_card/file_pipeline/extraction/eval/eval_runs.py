@@ -10,7 +10,7 @@ from typing import Any
 from .variance import GROUPS
 
 ENTITY_GROUPS = GROUPS[:-1]
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 
 
 def load_run(directory: str | Path) -> list[dict[str, Any]]:

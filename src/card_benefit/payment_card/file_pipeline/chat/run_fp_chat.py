@@ -17,6 +17,10 @@ from fp_chat_patch import apply
 # 키는 환경 변수 또는 저장소 루트의 .env에서 받는다(이미 export한 값이 우선). AI는 .env를 열지 않는다(D4).
 # 시험용으로 FP_CHAT_ENV_FILE로 .env 위치를 바꿀 수 있다.
 load_dotenv(os.environ.get("FP_CHAT_ENV_FILE") or HERE.parents[4] / ".env", override=False)
+# 셸 source 로 .env(CRLF)를 읽은 터미널에서는 값 끝에 '\r' 이 남아 DB 이름이 'postgres\r' 이 된다. 앞뒤 공백·줄바꿈을 제거한다.
+for _name in ("DB_URL", "FP_DATABASE_URL", "DB_URI", "OPENAI_API_KEY"):
+    if os.environ.get(_name):
+        os.environ[_name] = os.environ[_name].strip()
 # 팀 코드는 DB_URL을 읽는다. 없으면 FP_DATABASE_URL, 그것도 없으면 DB_URI(사용자 .env의 Supabase 접속 문자열) 순으로 넘겨 준다.
 if not os.environ.get("DB_URL"):
     for _name in ("FP_DATABASE_URL", "DB_URI"):

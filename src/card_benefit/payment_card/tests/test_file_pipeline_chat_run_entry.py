@@ -22,6 +22,7 @@ print("ERR", [e.value for e in at.error])
 print("INFO", [i.value for i in at.info])
 import os
 print("DBURL_SET", bool(os.environ.get("DB_URL")))
+print("DBURL_TAIL", repr(os.environ.get("DB_URL", "")[-8:]))
 """
 
 
@@ -66,6 +67,13 @@ class RunEntryTest(unittest.TestCase):
     def test_db_url_stays_unset_without_either(self):
         out = _run({"OPENAI_API_KEY": "dummy-no-call"})
         self.assertIn("DBURL_SET False", out)
+
+    def test_trailing_carriage_return_in_exported_value_is_stripped(self):
+        # 셸 source 로 CRLF .env 를 읽은 터미널은 값 끝에 '\r' 이 남아 DB 이름이 'postgres\r' 이 된다(실제 장애).
+        out = _run({"OPENAI_API_KEY": "dummy-no-call", "DB_URI": "postgresql://dummy/postgres\r"})
+        self.assertIn("DBURL_SET True", out)
+        self.assertIn("DBURL_TAIL 'postgres'", out)
+        self.assertNotIn("\\r", out)
 
     def test_exported_value_wins_over_dotenv(self):
         with tempfile.TemporaryDirectory() as d:

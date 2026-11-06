@@ -4,9 +4,10 @@ import argparse, csv, json, random, statistics
 from collections import defaultdict
 from pathlib import Path
 
-from . import answer_eval, review_sheet
+from .. import answer_eval
+from ..review import review_sheet
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 ALIASES = {'id': ('id',), 'issuer': ('카드사','issuer'), 'type': ('유형','type'), 'question': ('질문','question'), 'no_answer': ('정답없음','no_answer'), 'from_image_doc': ('이미지문서유래','from_image_doc'), 'difficulty': ('난이도','difficulty'), 'tier': ('구간한도필요','tier_required'), 'issuer_in_question': ('카드사명포함','issuer_in_question'), 'slice_tag': ('슬라이스태그','slice_tag'), 'group': ('변형그룹id','group_id'), 'facts': ('기대핵심사실','expected'), 'doc': ('근거문서','evidence_doc'), 'page': ('근거쪽','evidence_page'), 'start': ('근거시작','evidence_start'), 'end': ('근거끝','evidence_end'), 'spans': ('근거위치JSON','evidence_spans')}
 
 def safe_output(path):

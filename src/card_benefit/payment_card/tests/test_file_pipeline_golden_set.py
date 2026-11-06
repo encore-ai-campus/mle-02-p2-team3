@@ -1,7 +1,7 @@
 import importlib.util,csv
 from pathlib import Path
 CHAT=Path(__file__).resolve().parents[1]/'file_pipeline'/'chat'
-spec=importlib.util.spec_from_file_location('golden_set_test',CHAT/'golden_set.py'); gs=importlib.util.module_from_spec(spec);spec.loader.exec_module(gs)
+spec=importlib.util.spec_from_file_location('golden_set_test',CHAT / 'eval' / 'golden_set.py'); gs=importlib.util.module_from_spec(spec);spec.loader.exec_module(gs)
 def row(**kw):
  d={k:'' for k in gs.HEADERS};d.update({'id':'x','카드사':'하나','유형':'혜택조회','질문':'합성 질문','기대핵심사실1':'합성 사실','근거문서':'synthetic.pdf','근거쪽':'1','정답없음':'아니오','이미지문서유래':'아니오','문서가 있는 그래프':'우리','작성자':'합성 작성','검수자':'합성 검수'});d.update(kw);return d
 def save(p,rows):

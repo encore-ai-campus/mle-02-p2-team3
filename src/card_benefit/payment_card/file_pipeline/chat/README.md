@@ -29,27 +29,19 @@ PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/p
 
 첫 명령은 팀 화면과 사용자 연결부를 사용하고, 둘째 명령은 사용자 v2 화면을 사용한다. `app_v2.py`를 직접 실행하지 않는다.
 
-## 평가·검수 도구
+## 하위 폴더
 
-| 파일 | 역할 |
+| 폴더 | 내용 |
 |---|---|
-| `eval_questions.py` | 그래프 CSV의 메타데이터로 결정적인 질문 JSON을 생성한다. |
-| `run_eval.py` | 질문 평가를 실행하고 답변·검색 지표를 계산하는 CLI다. |
-| `retrieval_eval.py` | CSV 또는 데이터베이스 그래프를 대상으로 검색 결과를 평가한다. |
-| `seed_matcher.py` | 검색 평가에서 이름 메타데이터를 기준으로 시드를 결정적으로 선택한다. |
-| `golden_set.py` | 사람이 작성한 골든셋 CSV를 평가 하네스의 질문 JSON으로 변환한다. |
-| `golden_sampler.py` | 골든셋 작성용 PDF 쪽 표본을 선택한다. |
-| `golden_eval.py` | 골든셋과 저장된 결과를 평가하고 요약한다. |
-| `fact_judge.py` | 답변 사실을 규칙으로 먼저 비교하고 선택적으로 LLM 판정을 수행한다. |
-| `latency_bench.py` | 그래프 조회·탐색 경로의 지연시간을 비교한다. |
-| `review_sheet.py` | 답변과 그래프 근거를 연결한 로컬 HTML·CSV 검수 자료를 만든다. |
-| `review_focus.py` | 검수 근거를 강조한 로컬 HTML 집중 검수 자료를 만든다. |
+| [`eval/`](eval/README.md) | 질문 생성, 골든셋, 평가 실행, 판정, 검색 진단 등 오프라인 평가 도구 11개와 골든셋 템플릿이다. |
+| [`review/`](review/README.md) | 답변과 그래프 근거를 사람이 대조하는 검수 자료 생성 도구 2개다. |
+
+이동한 도구도 같은 패키지 아래라서 `payment_card.file_pipeline.chat.eval.<모듈>`, `payment_card.file_pipeline.chat.review.<모듈>` 로 실행한다(예: `python -m payment_card.file_pipeline.chat.eval.run_eval`). 스크립트식 임포트(`from answer_eval import ...`)가 필요한 도구는 `PYTHONPATH` 에 `chat/` 폴더를 포함한다.
 
 ## 데이터·초안 문서
 
 | 파일 | 역할 |
 |---|---|
-| `golden_set_template.csv` | 사람이 골든셋을 작성할 때 사용하는 열 템플릿이다. |
 | `카드혜택-Supabase-구조-보완-초안.md` | Supabase 카드 혜택 구조 보완을 정리한 초안 문서다. |
 
 평가·검수 도구도 기본 데이터 경로에서 데이터베이스나 OpenAI를 자동 호출하지 않으며, 호출 기능이 있는 경우 코드에서 명시적으로 실행 경로를 선택해야 한다.

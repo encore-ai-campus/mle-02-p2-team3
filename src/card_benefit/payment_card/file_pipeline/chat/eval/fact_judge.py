@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 
 try:
-    from . import answer_eval
+    from .. import answer_eval
 except ImportError:
     import answer_eval
 

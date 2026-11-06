@@ -2,10 +2,10 @@ import csv, importlib.util, json, sys
 from pathlib import Path
 
 CHAT=Path(__file__).parents[1]/'file_pipeline'/'chat'
-spec=importlib.util.spec_from_file_location('golden_eval_test',CHAT/'golden_eval.py',submodule_search_locations=[str(CHAT)])
+spec=importlib.util.spec_from_file_location('golden_eval_test',CHAT / 'eval' / 'golden_eval.py',submodule_search_locations=[str(CHAT)])
 # use package imports with configured PYTHONPATH
 import importlib
-mod=importlib.import_module('card_benefit.payment_card.file_pipeline.chat.golden_eval')
+mod=importlib.import_module('card_benefit.payment_card.file_pipeline.chat.eval.golden_eval')
 
 def test_overlap_groups_and_bootstrap_reproducible():
  assert mod.bootstrap([0,1,1],7)==mod.bootstrap([0,1,1],7)

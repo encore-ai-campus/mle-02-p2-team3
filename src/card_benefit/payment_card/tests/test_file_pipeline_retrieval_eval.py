@@ -4,7 +4,7 @@ from pathlib import Path
 
 CHAT = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat"
 def load(name):
-    spec = importlib.util.spec_from_file_location(name, CHAT / f"{name}.py")
+    spec = importlib.util.spec_from_file_location(name, next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); return mod
 
 reval = load("retrieval_eval")
@@ -83,7 +83,7 @@ def test_openai_adapter_fake_client_and_cost_estimate(monkeypatch,capsys):
 def test_load_db_does_not_import_rag_or_llm(monkeypatch):
     """LLM 없는 시험이므로 anthropic 을 가져오는 rag/llm 모듈을 불러오면 안 된다."""
     import sys, types
-    from payment_card.file_pipeline.chat import retrieval_eval
+    from payment_card.file_pipeline.chat.eval import retrieval_eval
     calls = []
     fake = types.SimpleNamespace(run_query=lambda q, p=None: calls.append(q) or [])
     monkeypatch.setitem(sys.modules, "db", fake)

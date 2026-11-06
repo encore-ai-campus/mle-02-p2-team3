@@ -10,9 +10,9 @@ from __future__ import annotations
 import re
 
 try:
-    from .seed_matcher import normalize
+    from .eval.seed_matcher import normalize
 except ImportError:  # Script-style imports from this directory.
-    from seed_matcher import normalize
+    from eval.seed_matcher import normalize
 
 MAX_BENEFIT_SEEDS = 3
 _PARTICLES = ("으로", "에서", "에게", "까지", "부터", "처럼", "보다", "은", "는", "이", "가", "을", "를", "의", "에", "로", "도", "만", "과", "와")

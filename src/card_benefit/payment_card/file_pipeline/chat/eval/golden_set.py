@@ -4,7 +4,7 @@ import argparse, csv, json, random, sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[5]
+ROOT = Path(__file__).resolve().parents[6]
 HEADERS = ['id','카드사','유형','질문','기대핵심사실1','기대핵심사실2','기대핵심사실3','근거문서','근거쪽','정답없음','이미지문서유래','문서가 있는 그래프','작성자','검수자','비고','시드엔티티']
 TYPE_MAP = {'혜택조회':'card_benefits','조건':'benefit_condition','한도':'benefit_limit','제외':'benefit_excludes','숫자정확도':'benefit_limit','비교':'comparison','정답없음':'no_answer'}
 ISSUERS = {'하나':'hana','우리':'woori'}

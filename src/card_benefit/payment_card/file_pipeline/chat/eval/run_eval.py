@@ -7,12 +7,12 @@ from pathlib import Path
 import sys
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parents[5]
-CHATBOT_DIR = HERE.parents[3] / "graphrag_chatbot"
+REPO_ROOT = HERE.parents[6]
+CHATBOT_DIR = HERE.parents[4] / "graphrag_chatbot"
 if str(REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / "src"))
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+if str(HERE.parent) not in sys.path:
+    sys.path.insert(0, str(HERE.parent))
 
 
 def metrics(records):
@@ -68,7 +68,7 @@ def main(argv=None):
     if Path("/tmp").resolve() not in qpath.parents or REPO_ROOT in qpath.parents:
         raise ValueError("질문 JSON은 /tmp 아래에 있어야 합니다.")
     if args.mode == "retrieval":
-        from retrieval_eval import main as retrieval_main
+        from eval.retrieval_eval import main as retrieval_main
         forwarded = [str(qpath), "--source", args.source, "--seed-mode", args.seed_mode,
                      "--seed-threshold", str(args.seed_threshold), "--hops", str(args.hops),
                      "--output", args.output, "--summary", args.summary]

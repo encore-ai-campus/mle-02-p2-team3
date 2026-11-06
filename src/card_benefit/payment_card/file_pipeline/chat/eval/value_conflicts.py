@@ -213,8 +213,8 @@ def run(questions_path: Path, hana_dir: Path, woori_dir: Path, json_output: Path
         csv_output: Path | None = None, dev_questions_path: Path | None = None,
         final_questions_path: Path | None = None, criterion: str = "exact") -> dict:
     try:
-        from .eval.entity_dup_probe import _retrieve as retrieve, load_graph
-        from .eval.seed_matcher import SeedMatcher
+        from ..eval.entity_dup_probe import _retrieve as retrieve, load_graph
+        from ..eval.seed_matcher import SeedMatcher
     except ImportError:  # Script-style import from this directory.
         from eval.entity_dup_probe import _retrieve as retrieve, load_graph
         from eval.seed_matcher import SeedMatcher
@@ -290,7 +290,7 @@ def run(questions_path: Path, hana_dir: Path, woori_dir: Path, json_output: Path
 
 def _probe_hops() -> int:
     try:
-        from .eval.entity_dup_probe import HOPS
+        from ..eval.entity_dup_probe import HOPS
     except ImportError:
         from eval.entity_dup_probe import HOPS
     return HOPS

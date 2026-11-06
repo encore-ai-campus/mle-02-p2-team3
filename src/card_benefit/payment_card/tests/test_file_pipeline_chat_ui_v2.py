@@ -7,7 +7,7 @@ import types
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "file_pipeline"))
 
-from chat.ui_v2 import (
+from chat.ui.ui_v2 import (
     EXAMPLE_QUESTIONS,
     build_analysis_question,
     build_compare_table,
@@ -127,7 +127,7 @@ def test_streamlit_example_question_renders_answer_and_new_conversation_resets(m
     monkeypatch.setitem(sys.modules, "rag", fake_rag)
     monkeypatch.setitem(sys.modules, "llm", fake_llm)
 
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "file_pipeline" / "chat" / "app_v2.py")).run()
+    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "file_pipeline" / "chat" / "ui" / "app_v2.py")).run()
     next(button for button in app.button if button.label.startswith("신세계 by JADE")).click().run()
     assert any("합성 답변" in str(element.value) for element in app.markdown)
     assert app.session_state["v2_current"] is not None

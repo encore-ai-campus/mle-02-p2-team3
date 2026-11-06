@@ -11,15 +11,15 @@ import uuid
 import streamlit as st
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parents[4]
+REPO_ROOT = HERE.parents[5]
 CHATBOT_DIR = REPO_ROOT / "src" / "graphrag_chatbot"
 if str(CHATBOT_DIR) not in sys.path:
     sys.path.insert(0, str(CHATBOT_DIR))
-if str(HERE) not in sys.path:
-    sys.path.insert(0, str(HERE))
+if str(HERE.parent) not in sys.path:
+    sys.path.insert(0, str(HERE.parent))
 
 import rag
-import ui_v2
+from ui import ui_v2
 
 st.set_page_config(page_title="카드 혜택 챗봇", layout="centered")
 

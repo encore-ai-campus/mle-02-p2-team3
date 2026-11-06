@@ -47,7 +47,7 @@ flowchart LR
 | `chunking/` | 쪽 원문과 제목 위치를 청크로 나누고 위치 보존을 확인한다. 자세한 분류는 [chunking README](chunking/README.md). |
 | `extraction/` | 추출 스키마·근거 위치·LLM 실행기와 시범, 평가·검토·진단 도구를 둔다. 자세한 분류는 [extraction README](extraction/README.md). |
 | `graph/` | 추출 결과를 그래프 형식으로 변환·검증·적재하고 그래프 보조 질의를 제공한다. |
-| `chat/` | 그래프 챗봇의 두 실행 화면, 팀 코드 어댑터, 답변 기능(`answer/`), 검색 보조(`retrieval/`), 평가·검수 도구를 둔다. 자세한 분류는 [chat README](chat/README.md). |
+| `chat/` | 그래프 챗봇의 두 실행 화면, 팀 코드 어댑터, v2 화면(`ui/`), 답변 기능(`answer/`), 검색 보조(`retrieval/`), 평가·검수 도구를 둔다. 자세한 분류는 [chat README](chat/README.md). |
 | `ledger/` | 인덱스·추적·청크 JSON을 문서·쪽·청크 테이블 열에 매핑해 검토용 SQL을 만든다(DB 연결 코드 없음). 자세한 분류는 [ledger README](ledger/README.md). |
 | `notebooks/` | 모듈을 눈으로 점검하는 보조 노트북과 점검 목록을 둔다. 출력은 비운 상태로 유지한다. |
 | `sql/` | 파일 기반 파이프라인용 PostgreSQL 스키마 참고 명세를 둔다. 실행 코드가 자동 적용하지 않는다. |
@@ -162,7 +162,7 @@ flowchart TD
     EX[graph/export.py] --> ES
     LOAD[graph/load.py] --> EX
     CHAT[chat/run_fp_chat.py] --> PATCH[chat/fp_chat_patch.py]
-    CHAT2[chat/run_fp_chat_v2.py] --> UI[chat/app_v2.py]
+    CHAT2[chat/run_fp_chat_v2.py] --> UI[chat/ui/app_v2.py]
     CHAT2 --> PATCH
     PATCH --> TEAM[src/graphrag_chatbot<br/>team code]
     PATCH --> DB[chat/db_pool + fp_chat]
@@ -180,7 +180,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/p
 PYTHONPATH=src:src/card_benefit uv run --locked streamlit run src/card_benefit/payment_card/file_pipeline/chat/run_fp_chat_v2.py
 ```
 
-`run_fp_chat.py`는 팀 화면에 사용자 연결부를 적용하고, `run_fp_chat_v2.py`는 사용자 소유 v2 화면을 실행한다. `chat/app_v2.py`는 직접 실행하지 않는다. 직접 실행하면 팀 `rag` 모듈의 Anthropic 임포트 오류가 발생한다.
+`run_fp_chat.py`는 팀 화면에 사용자 연결부를 적용하고, `run_fp_chat_v2.py`는 사용자 소유 v2 화면을 실행한다. `chat/ui/app_v2.py`는 직접 실행하지 않는다. 직접 실행하면 팀 `rag` 모듈의 Anthropic 임포트 오류가 발생한다.
 
 ```bash
 # 2단계: 카드사 1곳의 인덱스 만들기

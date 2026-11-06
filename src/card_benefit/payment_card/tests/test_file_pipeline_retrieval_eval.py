@@ -4,7 +4,7 @@ from pathlib import Path
 
 CHAT = Path(__file__).resolve().parents[1] / "file_pipeline" / "chat"
 def load(name):
-    spec = importlib.util.spec_from_file_location(name, next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py", CHAT / "answer" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"))
+    spec = importlib.util.spec_from_file_location(name, next((p for p in (next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py") if p.exists()), CHAT / f"{name}.py"), CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py", CHAT / "retrieval" / f"{name}.py", CHAT / "answer" / f"{name}.py") if p.exists()), next((p for p in (CHAT / f"{name}.py", CHAT / "eval" / f"{name}.py", CHAT / "review" / f"{name}.py") if p.exists()), CHAT / f"{name}.py")))
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod); return mod
 
 reval = load("retrieval_eval")

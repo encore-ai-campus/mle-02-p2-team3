@@ -15,6 +15,7 @@
 | E | `value_conflicts.py` → `chat/eval/` | 0a88643 → baaf144 | f2dd7c8, cd26ac6(보정) |
 | R | `entity_dedupe`, `seed_union`, `source_label` → `chat/retrieval/` | baaf144 → 876fa6b | 6df9cd0 |
 | A | `answer_check`, `answer_eval`, `answer_format` → `chat/answer/` | 876fa6b → e5b12e0 | b0edae4 |
+| U | `app_v2`, `ui_v2` → `chat/ui/` (사용자가 "폴더 정리부터 완료하자"로 승인) | 620ded8 → 아래 U 절 참고 | 아래 U 절 참고 |
 
 - 새 폴더 README 추가: `chat/retrieval/README.md`, `chat/answer/README.md`. `chat/README.md` 표·하위 폴더 표, `file_pipeline/README.md` 구조 설명, `notebooks/모듈-점검-목록.md` 갱신.
 - 결과 구조: `chat/` 바로 아래에는 진입점과 연결부(`run_fp_chat*`, `app_v2`, `ui_v2`, `fp_chat_patch`, `openai_llm_patch`, `db_pool`, `qa_log`)만 남았다. `file_pipeline/` 최상위 `.py`는 `__init__.py`뿐이다.
@@ -39,7 +40,7 @@
 
 ## 못 한 것과 남은 위험
 
-- **U 단계**(`app_v2`, `ui_v2` → `chat/ui/`)는 발표용 화면이라 적용하지 않았다. 사용자 확인 전 금지.
+- U 단계는 처음에는 보류했다가 같은 날 사용자 승인으로 적용했다(아래 U 절).
 - 저장소 밖 `~/pilot_work/eval-assets/usage-guide-wip/make_csv.py`(두 사본)의 모듈 분류 목록에 옛 경로(`traceability`, `answer_eval`)가 남아 있다. 실행해 보지 않았다.
 - 실제 Streamlit 화면은 실행하지 않았다(`app_v2.py`, `run_fp_chat_v2.py`의 `answer.` 스크립트식 fallback 경로는 테스트와 임포트 스모크까지만 확인).
 - 직접 확인하지 못한 것(추측): 노트북 셀을 실제로 실행했을 때의 동작. 노트북은 JSON 유효성과 점검 목록 테스트까지만 확인했다.
@@ -49,9 +50,16 @@
 
 Claude 한도가 끝나도 Codex가 이어받도록 개인 지침(`AGENTS.override.md`, 저장소 루트, `.git/info/exclude`로 제외)과 인계 문서(`~/pilot_work/reorg/HANDOFF-codex.md`)를 만들었다. Codex 샌드박스(`workspace-write`, 승인 없음)는 `.git`이 읽기 전용이라 커밋·병합이 안 된다는 것을 시험으로 확인했다. 파일 작업은 Codex, git은 사용자 또는 Claude로 나누기로 했다. 이 둘은 커밋하지 않는 개인 파일이다.
 
+## U 단계 (후속)
+
+- 도구가 `run_fp_chat_v2.py`의 `runpy` 경로, 테스트의 `from chat.ui_v2`·`app_v2.py` 경로, `ui_v2_check.ipynb`의 `from ui_v2`를 놓쳐 수동 수정했다. `app_v2.py`의 `HERE.parents[5]`(저장소 루트)와 `sys.path`(chat/, src/graphrag_chatbot)는 도구가 맞게 고쳤고, 위치 기준으로 직접 세어 확인했다.
+- 새 `chat/ui/README.md`, `chat/README.md`·`file_pipeline/README.md` 갱신. 관련 테스트 391개 통과(화면 AppTest 7개 포함). Codex 독립 검증(읽기 전용)의 지적(지도·README 표현)을 반영했다.
+- **실제 Streamlit 화면은 실행하지 않았다. 발표용 화면이므로 병합 후 사용자가 한 번 띄워 확인해야 한다.**
+- 이동한 `app_v2.py`는 최상위 이름 `ui`, `rag`, `answer` 등을 `sys.path`로 만든다. 팀 호스트에서 같은 이름을 쓰면 충돌할 수 있다(설계 문서에 기록).
+
 ## 다음에 할 일
 
-1. U 단계 적용 여부 결정(영향 지도부터). 발표 전에는 권하지 않는다.
+1. 사용자가 v2 화면을 실행해 확인한다(발표 전).
 2. `make_csv.py` 옛 경로 갱신 여부 결정.
 3. 도구의 약점(`from ..모듈`, 중첩 로더, 노트북 import) 보강 후 저장소 편입 검토.
 4. Streamlit 탭 화면 분기 작업(`feat/streamlit-pipeline-split`)은 정리 후 기준 브랜치를 다시 정한다. 그 브랜치는 `port` 기반이라 이번 정리 결과가 없다.

@@ -42,4 +42,4 @@ install(
     sleep=float(os.environ.get("FP_LLM_SLEEP", "0.3")),
 )
 apply()
-runpy.run_path(str(HERE / "app_v2.py"), run_name="__main__")
+runpy.run_path(str(HERE / "ui" / "app_v2.py"), run_name="__main__")

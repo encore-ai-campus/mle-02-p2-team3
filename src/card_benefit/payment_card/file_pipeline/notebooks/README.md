@@ -22,7 +22,7 @@ flowchart LR
 
     AUDIT[extraction_audit.ipynb] -->|verify_results| VERIFY[extraction/verify.py]
     AUDIT -->|compare_variance| VAR[extraction/eval/variance.py]
-    AUDIT -->|audit_review_sheet, optional| REVIEW[extraction/review_auto_audit.py]
+    AUDIT -->|audit_review_sheet, optional| REVIEW[extraction/review/review_auto_audit.py]
     AUDIT --> INPUT4[저장된 청크 JSON과 결과 JSON]
     AUDIT --> OUT2[검토용 Markdown 표시와 /tmp 점검 JSON]
     REVIEW --> OUT3[대조표 기계 점검 요약·행별 flag JSON]
@@ -35,7 +35,7 @@ flowchart LR
 | `doc_index_check.ipynb` | 하나·우리 인덱스 CSV의 문서 역할, 대표 여부, 검토 사유, 배치 대상 분포와 PDF 표 샘플 확인 | `doc_index/batch.py`의 `select_documents`를 호출한다. CSV 통계와 PDF 표 확인은 노트북에서 pandas·PyMuPDF로 직접 한다. | 실행 결과는 표와 미리보기다. 판정·변환은 노트북이 아니라 `doc_index/*.py`에 있다. PDF 텍스트가 화면에 보일 수 있다. |
 | `data_modify.ipynb` | ZIP에서 하나 PDF 한 건을 임시 폴더로 꺼내 추적성 JSON과 페이지별 텍스트를 확인 | `traceability.py`의 `create_traceability`, `write_traceability`; 간접적으로 `src/common/document_reader.py`를 거친다. PyMuPDF로 페이지 이미지를 그린다. | 시스템 임시 폴더의 `card-pilot/`에 PDF와 JSON을 만든다. ZIP·manifest·DB는 수정하지 않는다. 원문 출력이 있으므로 공유 전 노트북 출력을 지운다. ZIP 경로, PDF 이름, SHA-256, 페이지 수가 셀에 고정돼 있다. |
 | `chunking_explore.ipynb` | 쪽 길이 분포와 제목 기준 분할을 비교해 A(쪽 단위), B(제목 단위), C(혼합) 청킹 규칙을 탐색 | pandas·PyMuPDF를 사용하고 `page_lines`, `body_size`, `split_by_heading`, `hybrid_chunks` 등을 노트북 셀에서 직접 정의한다. `chunking/split.py`, `headings.py`, `build.py`는 import하지 않는다. | 표본 통계와 청크 미리보기를 만든다. 셀 안의 분할 함수는 탐색 프로토타입이므로 현재 구현 규칙의 실행 증거로 쓰지 않는다. 원문 일부가 출력될 수 있다. |
-| `extraction_audit.ipynb` | 이미 저장된 최대 5개 청크 결과를 골라 자동 신호와 원문을 나란히 검토하고, 선택적으로 검토 대조표의 기계 신호를 확인 | `extraction/verify.py`의 `verify_results`, `extraction/eval/variance.py`의 `compare_variance`, 선택 입력 시 `extraction/review_auto_audit.py`의 `audit_review_sheet`를 호출한다. 청크·결과 JSON을 노트북에서 읽고 비교용 Markdown을 조립한다. | LLM 호출은 하지 않는다. 점검 JSON은 `/tmp/pilot_followup_20261103_desktop/notebook_audit/`에 쓴다. 대조표 감사 입력은 `REVIEW_SHEET`와 `TRACE_DIR`을 명시해야 실행되며 결과는 `review_sheet_audit.json`으로 저장한다. 화면에는 청크 원문과 추출 인용문이 나올 수 있다. 입력 경로 기본값이 `/tmp/pilot_followup_20261103_desktop`으로 고정돼 있어 다른 실행 폴더에서는 먼저 경로 셀을 바꿔야 한다. |
+| `extraction_audit.ipynb` | 이미 저장된 최대 5개 청크 결과를 골라 자동 신호와 원문을 나란히 검토하고, 선택적으로 검토 대조표의 기계 신호를 확인 | `extraction/verify.py`의 `verify_results`, `extraction/eval/variance.py`의 `compare_variance`, 선택 입력 시 `extraction/review/review_auto_audit.py`의 `audit_review_sheet`를 호출한다. 청크·결과 JSON을 노트북에서 읽고 비교용 Markdown을 조립한다. | LLM 호출은 하지 않는다. 점검 JSON은 `/tmp/pilot_followup_20261103_desktop/notebook_audit/`에 쓴다. 대조표 감사 입력은 `REVIEW_SHEET`와 `TRACE_DIR`을 명시해야 실행되며 결과는 `review_sheet_audit.json`으로 저장한다. 화면에는 청크 원문과 추출 인용문이 나올 수 있다. 입력 경로 기본값이 `/tmp/pilot_followup_20261103_desktop`으로 고정돼 있어 다른 실행 폴더에서는 먼저 경로 셀을 바꿔야 한다. |
 
 ## 생산 코드와 역할 구분
 

@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.review_sheet import generate_review_sheet
+from payment_card.file_pipeline.extraction.review.review_sheet import generate_review_sheet
 
 
 def fixture_result(chunk_id, length, extraction=None, failures=None):

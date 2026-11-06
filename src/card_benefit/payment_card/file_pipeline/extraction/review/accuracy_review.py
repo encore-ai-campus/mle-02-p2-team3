@@ -32,7 +32,7 @@ _NUMBER = re.compile(
 _UNIT = re.compile(r"(?P<number>\d[\d,，]*(?:\.\d+)?)(?:\s*(?P<unit>억|천만|백만|만|천|백))?")
 _MULTIPLIERS = {"억": 100_000_000, "천만": 10_000_000, "백만": 1_000_000,
                 "만": 10_000, "천": 1_000, "백": 100}
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 
 
 def _load_chunks(directory: Path) -> dict[str, dict[str, Any]]:

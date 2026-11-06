@@ -9,7 +9,7 @@ import random
 from urllib.parse import quote
 from typing import Any
 
-_REPO_ROOT = Path(__file__).resolve().parents[5]
+_REPO_ROOT = Path(__file__).resolve().parents[6]
 _SEED = 20261103
 _GROUPS = ("benefits", "conditions", "limits", "targets", "relations")
 

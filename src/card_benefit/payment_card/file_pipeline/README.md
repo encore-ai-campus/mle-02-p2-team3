@@ -244,7 +244,7 @@ PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.cli diagnose-empty --chunk-dir <하나 청크 폴더> --results-dir <저장소 밖>/results --output-dir <저장소 밖>/diagnosis
 
 # 사람이 채운 검토표의 표시 수와 비율 집계 (원문이나 인용문은 출력하지 않음)
-PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.review_tally --sheet <저장소 밖>/review_sheet.md --output-dir <저장소 밖>/review_tally
+PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m payment_card.file_pipeline.extraction.review.review_tally --sheet <저장소 밖>/review_sheet.md --output-dir <저장소 밖>/review_tally
 
 # 테스트
 PYTHONPATH=src:src/card_benefit uv run --locked --no-sync python -m pytest -q src/card_benefit/payment_card/tests/

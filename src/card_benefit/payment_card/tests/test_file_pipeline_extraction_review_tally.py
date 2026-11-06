@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from payment_card.file_pipeline.extraction.review_tally import tally
+from payment_card.file_pipeline.extraction.review.review_tally import tally
 
 
 class ReviewTallyTests(unittest.TestCase):

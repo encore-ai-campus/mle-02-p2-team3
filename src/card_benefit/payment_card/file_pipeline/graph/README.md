@@ -112,3 +112,5 @@ UV_CACHE_DIR=/tmp/uv-cache PYTHONPATH=src:src/card_benefit uv run --locked --no-
 - **노드·간선 id는 전역 유일해야 한다.** 추출기가 내는 id(`benefit-1` 등)는 청크마다 겹치므로 적재기가 `"<chunk_id>:<추출 id>"` 형태로 바꿔 쓴다. 관계의 `source`/`target`도 같은 규칙으로 바꿔 연결이 끊기지 않게 한다. Issuer와 Card의 id는 인덱스의 발급사·상품 키로 정한다.
 - `located`만 위치(쪽·시작·끝)를 저장한다. 위치를 못 찾은 `missing`과 같은 문구가 청크에 여러 번 나오는 `ambiguous`는 위치 열을 비워 저장한다(`fp_evidence_position_by_status`). 반복 인용문의 첫 위치를 임의로 근거로 삼지 않는다는 데스크탑 정책을 따른다. 8단계 비교에서 반복 인용문 대조 방법을 정해야 한다.
 - 현재 관계 유형에는 Issuer와 Card를 잇는 것이 없다. `Issuer` 노드를 쓰려면 `ISSUES`(Issuer→Card) 같은 유형을 추가할지 결정해야 한다(결정 대기).
+
+`graph.source_text`는 `--trace-dir <DIR>`를 지정하면 `<DIR>/<issuer>/<doc_id>.json`의 페이지 텍스트를 PDF 텍스트 범위가 유효하지 않거나 trace와 다른 경우 보조 근거로 사용한다.

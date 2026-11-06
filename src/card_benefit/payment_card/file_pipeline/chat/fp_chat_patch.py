@@ -162,11 +162,12 @@ def apply(schema: str = "fp_chat"):
     if _ORIGINAL_ANSWER_SYSTEM is None:
         _ORIGINAL_ANSWER_SYSTEM = getattr(rag, "ANSWER_SYSTEM", "")
     try:
-        from .answer_format import ANSWER_SYSTEM_V2
+        from .answer_format import get_answer_format_version, select_answer_system
     except ImportError:
-        from answer_format import ANSWER_SYSTEM_V2
+        from answer_format import get_answer_format_version, select_answer_system
     legacy = os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "legacy"
-    rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM if legacy else ANSWER_SYSTEM_V2
+    selected_answer_format_version = "legacy" if legacy else get_answer_format_version()
+    rag.ANSWER_SYSTEM = _ORIGINAL_ANSWER_SYSTEM if legacy else select_answer_system()
     rag.list_entities = _make_list_entities(db, schema)
     original_answer = _ORIGINAL_ANSWER
     original_analyze = _ORIGINAL_ANALYZE
@@ -256,7 +257,7 @@ def apply(schema: str = "fp_chat"):
                 record = qa_log.build_record(
                     question=question, answer=result.get("answer", ""), result=result,
                     model=getattr(usage_module, "MODEL", None), usage=usage,
-                    latency_ms=stages, answer_format_version="legacy" if legacy else "v2",
+                    latency_ms=stages, answer_format_version=selected_answer_format_version,
                     graph_schema=schema, source_refs=refs, evidence_error=evidence_error,
                     app_version=os.environ.get("GIT_COMMIT") or os.environ.get("GITHUB_SHA"),
                     number_check=number_check,

@@ -151,13 +151,23 @@ def _quality_report(nodes,edges,attached_lengths,max_chars,truncated):
         "previous_reference":{"hana":"81/88 (about 92%)","woori":"73/88 (about 83%)"}
     }
 
-def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1, run_id_suffix="", margin_before=80, margin_after=80):
+def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1, run_id_suffix="", margin_before=80, margin_after=80, trace_dir=None):
     import fitz
     csv_dir=Path(csv_dir).resolve(); out=Path(output_dir).expanduser().resolve()
     if ROOT==out or ROOT in out.parents or Path("/tmp").resolve() not in out.parents: raise ValueError("출력은 저장소 밖 /tmp 아래만 허용됩니다.")
     if not 400<=max_chars<=1200 or margin_lines<0 or margin_before<0 or margin_after<0: raise ValueError("invalid limits")
     nodes=read_csv(csv_dir/"fp_nodes.csv"); edges=read_csv(csv_dir/"fp_edges.csv"); evs=read_csv(csv_dir/"fp_evidence.csv"); runs=read_csv(csv_dir/"fp_load_runs.csv")
     docs={r["sha256"]:r for r in read_csv(documents) if r.get("canonical", "Y").upper()=="Y"}
+    trace_docs={}
+    if trace_dir is not None:
+        trace_root=Path(trace_dir).expanduser()
+        for trace_path in (trace_root/issuer).glob("*.json"):
+            try:
+                trace_data=json.loads(trace_path.read_text(encoding="utf-8"))
+                document=trace_data.get("document",{})
+                trace_sha=document.get("sha256") or document.get("doc_sha256") or trace_data.get("doc_sha256")
+                if trace_sha: trace_docs[trace_sha]=trace_data
+            except (OSError,ValueError,AttributeError): continue
     byid={n["id"]:n for n in nodes}; edgeby={e["id"]:e for e in edges}; evidence=defaultdict(list)
     for ev in evs:
         if ev["quote_status"]!="located": continue
@@ -169,7 +179,7 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
         s,t=e["source_id"],e["target_id"]
         if byid.get(s,{}).get("node_type")=="Benefit": related[s].add(t)
         if byid.get(t,{}).get("node_type")=="Benefit": related[t].add(s)
-    reason=Counter(); lengths=[]; truncated=0; spill=0; attached=0
+    reason=Counter(); source_counts=Counter(); lengths=[]; truncated=0; spill=0; attached=0
     for b in (n for n in nodes if n["node_type"]=="Benefit"):
         props=json.loads(b["props"] or "{}")
         if any(k in props for k in ("source_text","source_text_pages","source_text_truncated")): raise ValueError("source_text property collision")
@@ -179,10 +189,11 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
             positions.extend(evidence[nid])
         if not positions:
             statuses=[x["quote_status"] for nid in relevant for x in evs if x["node_id"]==nid]
-            reason["ambiguous" if "ambiguous" in statuses else "missing"]+=1; continue
+            failure="ambiguous" if "ambiguous" in statuses else "missing"
+            reason[failure]+=1; source_counts[f"unattached:{failure}"]+=1; continue
         grouped=defaultdict(list)
         for x in positions: grouped[(x["doc_sha256"],int(x["page_no"]))].append(x)
-        pages=[]; fallback_pages=[]; failures=[]; limit_groups=[]; condition_positions=[]; benefit_positions=[]
+        pages=[]; fallback_pages=[]; failures=[]; used_sources=set(); limit_groups=[]; condition_positions=[]; benefit_positions=[]
         limit_ids={nid for nid in related[b['id']] if byid.get(nid,{}).get('node_type')=='Limit'}
         condition_ids={nid for nid in related[b['id']] if byid.get(nid,{}).get('node_type')=='Condition' and json.loads(byid[nid]['props'] or '{}').get('kind')=='SPEND_REQ'}
         limit_evidence=[x for nid in limit_ids for x in evidence[nid]]
@@ -194,10 +205,25 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
             pp=pdf_path(doc,Path(documents))
             try:
                 with fitz.open(pp) as pdf:
-                    if page_no>len(pdf): raise ValueError("page_missing")
                     start=min(int(x["start_pos"]) for x in group); end=max(int(x["end_pos"]) for x in group)
-                    page_text=pdf[page_no-1].get_text()
-                    snippet=extract_text(pdf[page_no-1],start,end,margin_lines)
+                    pdf_page=pdf[page_no-1] if page_no<=len(pdf) else None
+                    page_text=pdf_page.get_text() if pdf_page is not None else ""
+                    trace_text=None
+                    trace_data=trace_docs.get(sha)
+                    if trace_data:
+                        trace_pages=trace_data.get("pages",[])
+                        trace_page=next((p for p in trace_pages if int(p.get("page_no",0))==page_no),None)
+                        if trace_page is not None: trace_text=trace_page.get("text","")
+                    use_trace=trace_text is not None and (not page_text or end>len(page_text) or page_text!=trace_text)
+                    if use_trace:
+                        page_text=trace_text
+                        trace_page_obj=type("TracePage",(),{"get_text":lambda self:page_text})()
+                        snippet=extract_text(trace_page_obj,start,end,margin_lines)
+                        used_sources.add("trace")
+                    else:
+                        if pdf_page is None: raise ValueError("page_missing")
+                        snippet=extract_text(pdf_page,start,end,margin_lines)
+                        used_sources.add("pdf")
                 page_key=(sha,page_no)
                 pages.append((page_key,page_no,page_text))
                 fallback_pages.append((page_no,snippet))
@@ -207,7 +233,8 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
                 benefit_positions.extend((page_key,int(x['start_pos']),int(x['end_pos'])) for x in benefit_evidence if x['doc_sha256']==sha and int(x['page_no'])==page_no)
             except Exception: failures.append("pdf_unreadable")
         if not pages:
-            reason[failures[0] if failures else "pdf_unreadable"]+=1; continue
+            failure=failures[0] if failures else "pdf_unreadable"
+            reason[failure]+=1; source_counts[f"unattached:{failure}"]+=1; continue
         if len(pages)>1: spill+=1
         if len(pages)>3: pages=pages[:3]
         if len(pages)>3: pages=pages[:3]
@@ -218,6 +245,7 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
             value,cut=(value,False) if len(value)<=max_chars else (value[:max_chars-1]+"…",True)
         truncated+=cut
         props.update(source_text=value,source_text_pages=",".join(str(item[1]) for item in pages),source_text_truncated=cut)
+        source_counts["trace" if "trace" in used_sources else "pdf"]+=1
         b["props"]=json.dumps(props,ensure_ascii=False,separators=(",",":")); attached+=1; lengths.append(len(value))
     out.mkdir(parents=True,exist_ok=True)
     for table,rows in (("fp_nodes",nodes),("fp_edges",edges),("fp_evidence",evs),("fp_load_runs",runs)):
@@ -228,17 +256,17 @@ def build(csv_dir, issuer, documents, output_dir, max_chars=700, margin_lines=1,
             if run_id_suffix and "run_id" in row: row["run_id"]+=run_id_suffix
         write_csv(out/f"{table}.csv",table,rows)
     p=lambda q: round(statistics.quantiles(lengths,n=100,method="inclusive")[q-1]) if len(lengths)>=2 else (lengths[0] if lengths else 0)
-    report={"issuer":issuer,"benefits":sum(n["node_type"]=="Benefit" for n in nodes),"attached":attached,"unattached_by_reason":dict(reason),"length_chars":{"p50":p(50),"p90":p(90),"max":max(lengths,default=0)},"truncated":truncated,"multi_page":spill}
+    report={"issuer":issuer,"benefits":sum(n["node_type"]=="Benefit" for n in nodes),"attached":attached,"unattached_by_reason":dict(reason),"source_counts":{"pdf":source_counts["pdf"],"trace":source_counts["trace"],"unattached":{k.removeprefix("unattached:"):v for k,v in source_counts.items() if k.startswith("unattached:")}},"length_chars":{"p50":p(50),"p90":p(90),"max":max(lengths,default=0)},"truncated":truncated,"multi_page":spill}
     report.update(_quality_report(nodes,edges,lengths,max_chars,truncated))
     (out/"source_text_report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     return report
 
 def main(argv=None):
-    p=argparse.ArgumentParser(); p.add_argument("--csv-dir",required=True); p.add_argument("--issuer",required=True); p.add_argument("--documents",required=True); p.add_argument("--output-dir",required=True); p.add_argument("--max-chars",type=int,default=700); p.add_argument("--margin-lines",type=int,default=1); p.add_argument("--margin-before",type=int,default=80); p.add_argument("--margin-after",type=int,default=80); p.add_argument("--run-id-suffix",default="")
+    p=argparse.ArgumentParser(); p.add_argument("--csv-dir",required=True); p.add_argument("--issuer",required=True); p.add_argument("--documents",required=True); p.add_argument("--output-dir",required=True); p.add_argument("--max-chars",type=int,default=700); p.add_argument("--margin-lines",type=int,default=1); p.add_argument("--margin-before",type=int,default=80); p.add_argument("--margin-after",type=int,default=80); p.add_argument("--run-id-suffix",default=""); p.add_argument("--trace-dir")
     args=list(sys.argv[1:] if argv is None else argv)
     if "--run-id-suffix" in args:
         i=args.index("--run-id-suffix")
         if i+1<len(args) and args[i+1].startswith("-"):
             args[i]="--run-id-suffix="+args[i+1]; del args[i+1]
-    a=p.parse_args(args); print(json.dumps(build(a.csv_dir,a.issuer,a.documents,a.output_dir,a.max_chars,a.margin_lines,a.run_id_suffix,a.margin_before,a.margin_after),ensure_ascii=False)); return 0
+    a=p.parse_args(args); print(json.dumps(build(a.csv_dir,a.issuer,a.documents,a.output_dir,a.max_chars,a.margin_lines,a.run_id_suffix,a.margin_before,a.margin_after,a.trace_dir),ensure_ascii=False)); return 0
 if __name__=="__main__": raise SystemExit(main())

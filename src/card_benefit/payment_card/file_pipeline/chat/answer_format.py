@@ -13,8 +13,22 @@ ANSWER_SYSTEM_V2 = """당신은 그래프 근거로만 답하는 한국어 어�
 
 답을 필요 이상 길게 늘이지 말고 마크다운 줄바꿈을 유지하세요."""
 
+_VALUE_CONFLICT_RULE = "같은 대상(같은 호텔·가맹점·혜택)에 대해 근거에 서로 다른 수치(rate, amount, 한도)가 둘 이상 있으면 하나만 고르지 말고 모두 나열한다. 각 항목에 혜택 이름과 근거 쪽(속성 source_text 앞의 (p.N) 표시)을 붙여 어느 프로그램·조건의 수치인지 구분하고, 어느 것이 질문자에게 적용되는지 근거로 판단할 수 없으면 판단하지 말고 차이를 그대로 알린다."
+ANSWER_SYSTEM_V3 = ANSWER_SYSTEM_V2 + "\n\n" + _VALUE_CONFLICT_RULE
+
 ANSWER_SYSTEM_LEGACY = None  # The adapter fills this with the unmodified team prompt.
 ANSWER_FORMAT_VERSION = "v2"
+
+
+def select_answer_system() -> str:
+    """Select a supported answer prompt; unknown values safely use v2."""
+    import os
+    return ANSWER_SYSTEM_V3 if os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "v3" else ANSWER_SYSTEM_V2
+
+
+def get_answer_format_version() -> str:
+    """Return the version corresponding to :func:`select_answer_system`."""
+    return "v3" if select_answer_system() == ANSWER_SYSTEM_V3 else "v2"
 
 def check_answer_format(answer: str) -> dict:
     """Return small, model-free layout diagnostics suitable for JSON logs."""

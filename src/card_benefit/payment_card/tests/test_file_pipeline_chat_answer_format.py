@@ -33,6 +33,25 @@ def test_prompt_and_format_check_synthetic_cases():
     assert fmt.check_answer_format("짧은 답")["single_paragraph"] is True
 
 
+def test_answer_prompt_versions_and_selection(monkeypatch):
+    fmt = load("answer_format")
+    rule = "같은 대상(같은 호텔·가맹점·혜택)에 대해 근거에 서로 다른 수치(rate, amount, 한도)가 둘 이상 있으면 하나만 고르지 말고 모두 나열한다. 각 항목에 혜택 이름과 근거 쪽(속성 source_text 앞의 (p.N) 표시)을 붙여 어느 프로그램·조건의 수치인지 구분하고, 어느 것이 질문자에게 적용되는지 근거로 판단할 수 없으면 판단하지 말고 차이를 그대로 알린다."
+    assert fmt.ANSWER_SYSTEM_V3.startswith(fmt.ANSWER_SYSTEM_V2)
+    assert rule in fmt.ANSWER_SYSTEM_V3
+    monkeypatch.delenv("FP_ANSWER_FORMAT", raising=False)
+    assert fmt.select_answer_system() == fmt.ANSWER_SYSTEM_V2
+    assert fmt.get_answer_format_version() == "v2"
+    assert fmt.ANSWER_SYSTEM_V2 == fmt.select_answer_system()
+    monkeypatch.setenv("FP_ANSWER_FORMAT", "v3")
+    assert fmt.select_answer_system() == fmt.ANSWER_SYSTEM_V3
+    assert fmt.get_answer_format_version() == "v3"
+    monkeypatch.setenv("FP_ANSWER_FORMAT", "v2")
+    assert fmt.select_answer_system() == fmt.ANSWER_SYSTEM_V2
+    monkeypatch.setenv("FP_ANSWER_FORMAT", "invalid")
+    assert fmt.select_answer_system() == fmt.ANSWER_SYSTEM_V2
+    assert fmt.get_answer_format_version() == "v2"
+
+
 def test_qa_record_numbers_path_and_noop(monkeypatch, tmp_path):
     qa = load("qa_log")
     monkeypatch.delenv("FP_QA_LOG", raising=False)
@@ -111,6 +130,11 @@ def test_answer_format_toggle_restore_and_failure_does_not_block(monkeypatch, ca
     assert built[0]["source_refs"] == []
     assert built[0]["source_refs_error"] == "source_refs_query_error"
     assert "FP_QA_LOG_ERROR:invalid_path" in capsys.readouterr().err
+    monkeypatch.setenv("FP_ANSWER_FORMAT", "v3")
+    patched = patch.apply()
+    assert patched.ANSWER_SYSTEM.endswith("차이를 그대로 알린다.")
+    patched.answer("V3 로그 선택 합성 질문")
+    assert built[-1]["answer_format_version"] == "v3"
     monkeypatch.setenv("FP_ANSWER_FORMAT", "legacy")
     patched = patch.apply()
     assert patched.ANSWER_SYSTEM == original_prompt

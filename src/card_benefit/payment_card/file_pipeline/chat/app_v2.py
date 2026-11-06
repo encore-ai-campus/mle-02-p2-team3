@@ -101,7 +101,7 @@ def _write_qa_log(question: str, answer: str, subgraph: dict, selected_entities:
         refs, evidence_error = [], "source_refs_query_error"
     try:
         import llm
-        from answer_format import ANSWER_FORMAT_VERSION
+        from answer_format import get_answer_format_version
         import answer_eval
         import qa_log
         result = {"answer": answer, "subgraph": subgraph, "selected_entities": selected_entities}
@@ -109,7 +109,7 @@ def _write_qa_log(question: str, answer: str, subgraph: dict, selected_entities:
             question=question, answer=answer, result=result,
             model=getattr(llm, "MODEL", None), usage=timing_segments.get("usage"),
             latency_ms=latency_ms,
-            answer_format_version="legacy" if os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "legacy" else ANSWER_FORMAT_VERSION,
+            answer_format_version="legacy" if os.environ.get("FP_ANSWER_FORMAT", "v2").strip().lower() == "legacy" else get_answer_format_version(),
             graph_schema=os.environ.get("FP_GRAPH_SCHEMA", "fp_chat"), source_refs=refs,
             evidence_error=evidence_error,
             app_version=os.environ.get("GIT_COMMIT") or os.environ.get("GITHUB_SHA"),

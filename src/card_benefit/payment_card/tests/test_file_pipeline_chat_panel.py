@@ -88,12 +88,37 @@ def test_prepare_backend_reports_missing_key_without_installing(monkeypatch, tmp
     assert panel._BACKEND_PREPARED is False
 
 
+def test_prepare_backend_reports_missing_db_url_with_key_present(monkeypatch, tmp_path):
+    from streamlit.testing.v1 import AppTest
+
+    panel = _load_panel(monkeypatch)
+    _set_missing_env_file(monkeypatch, tmp_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-test-key")
+    for name in ("DB_URL", "FP_DATABASE_URL", "DB_URI"):
+        monkeypatch.delenv(name, raising=False)
+    calls = []
+    _stub_dependencies(monkeypatch, calls)
+
+    def app():
+        from payment_card.file_pipeline.chat.panel import prepare_backend
+
+        prepare_backend()
+
+    result = AppTest.from_function(app).run()
+
+    assert not result.exception
+    assert any("DB_URL 환경 변수가 필요합니다." in error.value for error in result.error)
+    assert calls == []
+    assert panel._BACKEND_PREPARED is False
+
+
 def test_prepare_backend_installs_and_applies_once_per_process(monkeypatch, tmp_path):
     from streamlit.testing.v1 import AppTest
 
     panel = _load_panel(monkeypatch)
     _set_missing_env_file(monkeypatch, tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "synthetic-test-key")
+    monkeypatch.setenv("DB_URL", "postgresql://synthetic.invalid/test")
     monkeypatch.setenv("FP_MAX_COST_USD", "0.42")
     monkeypatch.setenv("FP_LLM_SLEEP", "0.0")
     calls = []

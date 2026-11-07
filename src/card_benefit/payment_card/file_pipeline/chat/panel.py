@@ -41,6 +41,9 @@ def prepare_backend() -> bool:
     if not os.environ.get("OPENAI_API_KEY"):
         st.error("OPENAI_API_KEY 환경 변수가 필요합니다.")
         return False
+    if not os.environ.get("DB_URL"):
+        st.error("DB_URL 환경 변수가 필요합니다. (FP_DATABASE_URL 또는 DB_URI 사용 가능)")
+        return False
 
     # Keep these as bare-name imports after sys.path setup. The adapters share
     # their module state with the script-style GraphRAG imports.

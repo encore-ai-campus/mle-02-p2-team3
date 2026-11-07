@@ -81,6 +81,24 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(result["subgraph"]["nodes"], [])
         self.assertIn("찾지 못했습니다", result["answer"])
 
+    def test_analyze_exception_falls_back_to_string_matching_and_logs_one_warning(self):
+        question = "결제 API 진단 질문"
+        secret = "synthetic-test-secret"
+        entities = [{"name": "결제 API", "label": "Service"}]
+        with mock.patch.object(llm, "complete", side_effect=RuntimeError(secret)):
+            with self.assertLogs("rag", level="WARNING") as captured:
+                result = rag.analyze(question, entities)
+
+        self.assertEqual(result.entities, ["결제 API"])
+        self.assertEqual(result.hops, 1)
+        self.assertEqual(result.intent, "")
+        self.assertEqual(len(captured.records), 1)
+        warning = captured.records[0].getMessage()
+        self.assertIn("RuntimeError", warning)
+        self.assertIn("문자열 매칭으로 대체", warning)
+        self.assertNotIn(question, warning)
+        self.assertNotIn(secret, warning)
+
     def test_timing_log_written_with_all_stages(self):
         rag.answer("결제 API 장애 영향은?")
         lines = Path(self.log_dir, "timing.jsonl").read_text(encoding="utf-8").splitlines()

@@ -6,6 +6,7 @@ DB 연결과 테이블 이름은 db.py가 맡습니다.
 하위 그래프 형식: {"nodes": [...], "edges": [...], "seeds": [...]}
 """
 import json
+import logging
 import re
 import time
 import uuid
@@ -15,6 +16,8 @@ from typing import Iterator
 import db
 import llm
 import timing
+
+logger = logging.getLogger(__name__)
 
 MAX_HOPS = 3
 MAX_NODES = 40
@@ -80,8 +83,11 @@ def analyze(question: str, entities: list[dict]) -> Analysis:
         picked = [n for n in data.get("entities", []) if n in known]
         hops = int(data.get("hops", 1))
         intent = str(data.get("intent", ""))
-    except Exception:
-        pass  # LLM 응답이 깨지면 아래 문자열 매칭으로 대체합니다.
+    except Exception as exc:
+        logger.warning(
+            "LLM analysis failed (%s); 문자열 매칭으로 대체합니다.",
+            type(exc).__name__,
+        )
     if not picked:
         picked = [n for n in known if n in question]
     return Analysis(entities=picked, hops=max(1, min(hops, MAX_HOPS)), intent=intent)

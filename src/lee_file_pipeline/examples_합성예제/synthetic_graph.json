@@ -1,0 +1,7 @@
+{
+  "edges": [{"_fp_id": "e1", "source": "a", "target": "t", "type": "OFFERS"}],
+  "evidence": [
+    {"edge_id": "e1", "doc_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "page_no": 1, "start_pos": 1, "end_pos": 3, "quote_status": "located"},
+    {"edge_id": "e2", "quote_status": "missing"}
+  ]
+}

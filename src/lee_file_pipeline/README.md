@@ -49,23 +49,27 @@
 | 이현근의 기존 경로 출처·v2 화면 수정 | [v2 화면](../card_benefit/payment_card/file_pipeline/chat/ui/README.md), [사용자 테스트](tests_테스트/test_chat_graph_display.py), [표시 검토 기록](docs_작업기록/챗봇_자료_관계도_검토.md) | 합성 DB 대체·화면 구성 검사. 브라우저·실 DB 미확인 |
 | 카드별 혜택 연결의 남은 판단 | [합성 결함 재현](defect_repro.py), [결함 분석·계약 초안](docs_작업기록/챗봇_결함_분석.md) | 합성 관찰과 제안. 스키마·운영 정책 미적용 |
 
-## 폴더 구조
+## 폴더별 파일 현황
 
-기존 `payment_card/file_pipeline/`과 대응되는 계층에 영어 이름과 한글 역할을 붙였다. 아래의 빈 폴더는 **위치만 준비**했으며 기존 구현·데이터를 복사하지 않았다.
+기준: **2026-11-09 로컬 작업 트리**. `.gitkeep`은 폴더 표식. 파일·폴더 존재만으로 단계 완료를 뜻하지 않음. 기존 실행 파이프라인: [`payment_card/file_pipeline`](../card_benefit/payment_card/file_pipeline/README.md).
 
-| 사용자 폴더 | 역할 | 현재 상태 |
-|---|---|---|
-| `doc_index_문서인덱스/`, `doc_index_문서인덱스/adapters_카드사변환/` | 문서 인덱스·카드사 변환 | 구조만 준비 |
-| `chunking_문서분할/` | 원문 청킹 | 구조만 준비 |
-| `extraction_혜택추출/` 및 하위 `eval_평가/`, `report_보고/`, `review_검토/` | 추출·평가·보고·검토 | 구조만 준비 |
-| `extraction_혜택추출/pilot_hana_15299_하나파일럿/` | 기존 하나 파일럿 대응 위치 | 이름만 준비; 결과 없음 |
-| `graph_그래프/`, `graph_그래프/cypher_사이퍼/` | 그래프 변환·질의 | 구조만 준비 |
-| `chat_챗봇/` 및 하위 답변·평가·검색·검토·화면 폴더 | 챗봇 관련 작업 | 구조만 준비 |
-| `ledger_장부/`, `sql_스키마/` | 장부 보조·SQL | 구조만 준비 |
-| `notebooks_점검노트북/`, `notebooks_점검노트북/학습용/` | 보조 노트북 | 합성 노트북 1개; 개인 학습 파일 없음 |
-| `docs_작업기록/`, `examples_합성예제/`, `tests_테스트/` | 사용자 검토 기록·합성 입력·테스트 | 사용 중 |
+| 폴더 | 실제 파일 | 현재 확인 | 검증 범위·다음 확인 |
+|---|---|---|---|
+| `doc_index_문서인덱스/` | - 루트 파일 없음<br>- `adapters_카드사변환/.gitkeep` | - 대응 폴더만 있음 | - 실행 코드는 [기존 문서 인덱스](../card_benefit/payment_card/file_pipeline/doc_index/README.md) 참조 |
+| `chunking_문서분할/` | - `.gitkeep` | - 대응 폴더만 있음 | - 청킹 코드는 [기존 경로](../card_benefit/payment_card/file_pipeline/chunking/README.md) 참조 |
+| `extraction_혜택추출/` | - [추출 계약](extraction_혜택추출/과제_추출-계약.md)<br>- [전처리 예시](extraction_혜택추출/과제_전처리-예시.md)<br>- [M4 실행 기록 양식](extraction_혜택추출/과제_실행-재현-기록.md) | - 안내·계약·기록 양식 3개<br>- 이 경로에 실제 추출 결과 없음 | - 실제 실행·결과 상태: [현황판](STATUS.md) |
+| `extraction_혜택추출/eval_평가/`, `report_보고/`, `review_검토/`, `pilot_hana_15299_하나파일럿/` | - 각 하위 폴더에 `.gitkeep` | - 빈 대응 폴더 | - 평가 산출물·하나 파일럿 결과 없음 |
+| `graph_그래프/` | - [entity_resolution.py](graph_그래프/entity_resolution.py)<br>- [M7 질의 템플릿](graph_그래프/M7_질의-템플릿.cypher)<br>- [검증·시연 안내](graph_그래프/과제_그래프-검증-안내.md) | - 보조 변환 코드·질의·안내 문서 | - 승인 mapping 적용 전<br>- M7 질의 실행 결과 없음<br>- 과거 M6 적재와 현재 상태: [현황판](STATUS.md) |
+| `graph_그래프/cypher_사이퍼/` | - `.gitkeep` | - 빈 대응 폴더 | - 템플릿은 [상위 폴더](graph_그래프/M7_질의-템플릿.cypher) |
+| `chat_챗봇/` 하위 `answer_답변/`, `eval_평가/`, `retrieval_검색/`, `review_검토/`, `ui_화면/` | - 각 하위 폴더에 `.gitkeep` | - 대응 폴더만 있음<br>- 기존 코드 복사 없음 | - 실행 코드는 [기존 챗봇](../card_benefit/payment_card/file_pipeline/chat/README.md) 참조 |
+| `ledger_장부/`, `sql_스키마/` | - 각 폴더에 `.gitkeep` | - 빈 대응 폴더 | - 장부·SQL 산출물 없음 |
+| `notebooks_점검노트북/` | - [합성 점검 노트북](notebooks_점검노트북/관계_근거_확인.ipynb)<br>- `학습용/.gitkeep` | - 합성 노트북 1개<br>- 학습용 파일 없음 | - 실자료·DB 검증 아님 |
+| 루트 보조 코드 | - [evidence_audit.py](evidence_audit.py)<br>- [defect_repro.py](defect_repro.py) | - 관계·근거 점검 및 합성 재현 도구 | - 합성·파일 기반 검사; 실제 자료의 오류 여부 미확인 |
+| `docs_작업기록/` | - [작업 기록 5개](docs_작업기록/) | - 검토·재현 기록 | - 개별 결론과 검증 범위는 각 문서 참조 |
+| `examples_합성예제/` | - [synthetic_graph.json](examples_합성예제/synthetic_graph.json) | - 합성 입력 1개 | - 실제 카드 자료·운영 DB 아님 |
+| `tests_테스트/` | - [test_evidence_audit.py](tests_테스트/test_evidence_audit.py)<br>- [test_chat_graph_display.py](tests_테스트/test_chat_graph_display.py) | - 테스트 파일 2개 | - 파일 존재만으로 통과를 뜻하지 않음. 실행 기록: [현황판](STATUS.md) |
 
-빈 최하위 폴더의 `.gitkeep`은 구조 표시용이다. 점검 코드는 이 폴더 루트에 있으며, 기존 파이프라인 구현·SQL·데이터는 이곳에 복사하지 않았다. 실행 명령은 [작업별 명령 안내](../../docs/사용법-작업별-명령.md), 전체 단계와 공동 작업 경계는 [프로젝트 지도](../../docs/프로젝트-지도.md)를 참고한다.
+기존 SQL·운영 데이터 복사 없음. 실행 명령: [작업별 명령 안내](../../docs/사용법-작업별-명령.md). 전체 단계·공동 작업 경계: [프로젝트 지도](../../docs/프로젝트-지도.md).
 
 ## 사용자 점검 코드 실행
 

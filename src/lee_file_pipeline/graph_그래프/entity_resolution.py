@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import tempfile
+from datetime import datetime, timezone
 
 NODE_COLUMNS = ["id", "node_type", "props", "chunk_id", "run_id"]
 EDGE_COLUMNS = ["id", "source_id", "target_id", "edge_type", "run_id"]
@@ -63,10 +64,6 @@ def _props(row: dict[str, str]) -> dict:
     return p
 
 
-def _truthy(value: str) -> bool:
-    return value.strip().lower() in {"1", "true", "yes", "y"}
-
-
 def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Path, run_id: str) -> dict:
     csv_dir, mapping_csv, output_dir, audit_dir = (p.expanduser().resolve() for p in
                                                     (csv_dir, mapping_csv, output_dir, audit_dir))
@@ -83,11 +80,18 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
         raise ValueError("--m6-run-id must be non-empty")
     filenames = {"fp_nodes.csv": NODE_COLUMNS, "fp_edges.csv": EDGE_COLUMNS,
                  "fp_evidence.csv": EVIDENCE_COLUMNS, "fp_load_runs.csv": RUN_COLUMNS}
+    if not mapping_csv.is_file():
+        raise ValueError(f"mapping CSV does not exist: {mapping_csv}")
+    actual_files = {p.name for p in csv_dir.iterdir() if p.is_file()}
+    if actual_files != set(filenames):
+        raise ValueError(f"input directory must contain exactly {sorted(filenames)}; found {sorted(actual_files)}")
     data = {name: _read(csv_dir / name, columns) for name, columns in filenames.items()}
     nodes, edges, evidence, runs = (data[n] for n in ("fp_nodes.csv", "fp_edges.csv", "fp_evidence.csv", "fp_load_runs.csv"))
     if len(runs) != 1 or not runs[0]["run_id"]:
         raise ValueError("input fp_load_runs.csv must contain exactly one run")
     source_run = runs[0]["run_id"]
+    if run_id == source_run:
+        raise ValueError("M6 run ID must differ from the source exporter run ID")
     try:
         if int(runs[0]["node_count"]) != len(nodes) or int(runs[0]["edge_count"]) != len(edges):
             raise ValueError("fp_load_runs counts do not match input rows")
@@ -134,7 +138,7 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
                 new = cards[e["source_id"]]
             if not new.issubset(cards[e["target_id"]]):
                 cards[e["target_id"]].update(new); changed = True
-    mappings = _read(mapping_csv, list(MAP_COLUMNS)) if mapping_csv.exists() else []
+    mappings = _read(mapping_csv, list(MAP_COLUMNS))
     groups: dict[str, list[dict[str, str]]] = {}
     member_owner: dict[str, str] = {}
     remap = {nid: nid for nid in by_id}
@@ -146,14 +150,20 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
                 or not r["card_scope_id"] or not r["canonical_node_id"] or not r["member_node_id"]
                 or r["canonical_node_id"] not in by_id or r["member_node_id"] not in by_id):
             raise ValueError("mapping rows require group/scope/card scope and existing canonical/member IDs")
+        if not all(r[k].strip() for k in ("reason_code", "evidence_ref", "reviewer", "reviewed_at")):
+            raise ValueError("all mapping decisions require reason_code, evidence_ref, reviewer, and reviewed_at")
         expected_link = "SAME_AS_STRONG" if r["scope"] == "within_card" else "SIMILAR"
         if r["link_type"] != expected_link:
             raise ValueError("within_card requires SAME_AS_STRONG; across_cards requires SIMILAR")
+        if r["scope"] == "within_card":
+            scope_node = by_id.get(r["card_scope_id"])
+            if scope_node is None or scope_node["node_type"] != "Card":
+                raise ValueError("within_card card_scope_id must identify an existing Card node")
+        elif r["card_scope_id"] != "across_cards":
+            raise ValueError("across_cards rows must use card_scope_id='across_cards'")
         if decision == "merge":
             if r["scope"] != "within_card":
                 raise ValueError("only within_card mappings may merge")
-            if not all(r[k].strip() for k in ("reason_code", "evidence_ref", "reviewer", "reviewed_at")):
-                raise ValueError("merge rows require reason_code, evidence_ref, reviewer, and reviewed_at")
             groups.setdefault(r["group_id"], []).append(r)
     for gid, rows in groups.items():
         canonicals = {r["canonical_node_id"] for r in rows}
@@ -177,9 +187,13 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
                 raise ValueError(f"group {gid}: derived card membership differs or is empty")
             if card_scope_id not in cards[member]:
                 raise ValueError(f"group {gid}: card_scope_id does not match derived card membership")
-            for key in set(CORE.get(by_id[member]["node_type"], ())) | set(CORE.get(by_id[canonical]["node_type"], ())):
-                if props[member].get(key) != props[canonical].get(key):
-                    raise ValueError(f"group {gid}: conflicting core property {key}")
+            spelling_key = SPELLING.get(by_id[member]["node_type"])
+            for key in set(props[member]) | set(props[canonical]):
+                if key == spelling_key:
+                    continue
+                if (key not in props[member] or key not in props[canonical]
+                        or props[member][key] != props[canonical][key]):
+                    raise ValueError(f"group {gid}: conflicting property {key}")
             remap[member] = canonical
     # Resolve chains defensively and reject cycles, even though group validation usually disallows them.
     for nid in remap:
@@ -194,9 +208,17 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
         c = remap[nid]
         if c != nid:
             spelling_key = SPELLING.get(n["node_type"])
-            if spelling_key and props[nid].get(spelling_key) not in (None, "", props[c].get(spelling_key)):
+            spelling_differs = bool(spelling_key) and (
+                (spelling_key in props[nid]) != (spelling_key in props[c])
+                or props[nid].get(spelling_key) != props[c].get(spelling_key)
+            )
+            if spelling_differs:
                 alias_rows.append({"canonical_node_id": c, "alias_node_id": nid, "property": spelling_key,
-                                   "alias_value": str(props[nid][spelling_key]), "group_id": member_owner[nid]})
+                                   "canonical_value": str(props[c].get(spelling_key, "")),
+                                   "canonical_present": str(spelling_key in props[c]).lower(),
+                                   "alias_value": str(props[nid].get(spelling_key, "")),
+                                   "alias_present": str(spelling_key in props[nid]).lower(),
+                                   "group_id": member_owner[nid]})
             continue
         out_nodes.append(dict(n, run_id=run_id))
     survivor = {}
@@ -249,7 +271,9 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
                 "preserved_mapping_rows": str(sum(r["decision"] != "merge" for r in mappings)),
                 "keep_rows": str(sum(r["decision"] == "keep" for r in mappings)),
                 "defer_rows": str(sum(r["decision"] == "defer" for r in mappings)),
-                "mapping_sha256": hashlib.sha256(mapping_csv.read_bytes()).hexdigest() if mapping_csv.exists() else ""}]
+                "source_run_id": source_run,
+                "transformed_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "mapping_sha256": hashlib.sha256(mapping_csv.read_bytes()).hexdigest()}]
     mapping_audit = [dict(r, applied=str(r["decision"] == "merge").lower()) for r in mappings]
     for directory in (output_dir, audit_dir):
         if directory.exists() and any(directory.iterdir()): raise FileExistsError(f"directory is not empty: {directory}")
@@ -264,7 +288,8 @@ def transform(csv_dir: Path, mapping_csv: Path, output_dir: Path, audit_dir: Pat
         _write(data_stage / "fp_evidence.csv", EVIDENCE_COLUMNS, out_evidence)
         _write(audit_stage / "node_mapping.csv", ["node_id", "canonical_node_id", "changed"], node_audit)
         _write(audit_stage / "edge_mapping.csv", ["edge_id", "survivor_edge_id", "collapsed"], edge_audit)
-        _write(audit_stage / "aliases.csv", ["canonical_node_id", "alias_node_id", "property", "alias_value", "group_id"], alias_rows)
+        _write(audit_stage / "aliases.csv", ["canonical_node_id", "alias_node_id", "property", "canonical_value",
+                                               "canonical_present", "alias_value", "alias_present", "group_id"], alias_rows)
         _write(audit_stage / "summary.csv", list(summary[0]), summary)
         _write(audit_stage / "mapping_decisions.csv", [*MAP_COLUMNS, "applied"], mapping_audit)
         manifest = []

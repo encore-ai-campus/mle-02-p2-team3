@@ -27,11 +27,7 @@ from .query_session import QuerySession
 
 
 logger = logging.getLogger("car_search_rag.neo4j")
-# region [Python 설명] 모듈 수준 정규식 상수
-# `_STATEMENT_HEADER`는 `.cypher` 파일에서 "// name: 이름" 형식의 선언 줄을 찾는다.
-# `re.MULTILINE`이면 `^`/`$`가 파일 전체가 아니라 각 줄의 시작/끝에 일치한다.
-# `([A-Za-z_][A-Za-z0-9_]*)` 괄호 부분이 group(1)로 잡히는 statement 이름이다.
-# 이름 앞의 `_`는 "모듈 내부용"이라는 Python 관례다.
+# region 모듈 수준 정규식 상수
 # endregion
 _STATEMENT_HEADER = re.compile(r"^\s*//\s*name:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$", re.MULTILINE)
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -44,17 +40,8 @@ SUMMARY_COUNTER_NAMES: tuple[str, ...] = (
 )
 
 
-#=========================================================
 # 로그 전용 도우미 (실행할 Cypher를 만드는 데는 사용하지 않음)
-#=========================================================
-# region [Python 설명] @lru_cache와 지연 import
-# `@lru_cache(maxsize=1)`은 함수 결과를 기억해 두는 decorator다. 인자가 없는 이 함수는
-# 처음 한 번만 본문을 실행하고, 이후 호출에는 저장된 결과를 바로 돌려준다.
-# 본문의 `from neo4j... import`는 이 함수가 처음 호출될 때 실행되므로,
-# neo4j 패키지가 없는 환경에서도 이 모듈 자체는 import할 수 있다.
-# 패키지가 없으면 빈 tuple `()`을 넣어 두는데, `isinstance(x, ())`는 항상 False라서
-# 아래 isinstance 검사들이 예외 없이 "해당 타입 아님"으로 처리된다.
-# `SimpleNamespace(Node=...)`는 `types.Node`처럼 속성으로 꺼내 쓰는 간단한 객체다.
+# region @lru_cache와 지연 import
 # endregion
 @lru_cache(maxsize=1)
 def _driver_types() -> SimpleNamespace:
@@ -82,10 +69,7 @@ def _cypher_name(key: Any) -> str:
 
 def _cypher_string(text: str) -> str:
     """Python 문자열을 작은따옴표 Cypher 문자열 리터럴로 이스케이프한다(로그 표시용)."""
-    # region [Python 설명] 문자열 안의 역슬래시
-    # Python 소스의 `"\\\\"`는 실제 역슬래시 두 개, `"\\'"`는 역슬래시+작은따옴표를 뜻한다.
-    # 즉 원래 문자 하나를 Cypher가 읽을 수 있는 이스케이프 표기로 바꿔 list에 모은다.
-    # `f"\\u{ord(char):04x}"`는 제어 문자를 `\u0001` 같은 4자리 16진수 표기로 만든다.
+    # region 문자열 안의 역슬래시
     # endregion
     escaped = []
     for char in text:
@@ -178,11 +162,7 @@ def render_cypher_params(query_logger: QueryLogger, query: str, parameters: Mapp
     (벡터, bytes, 알 수 없는 객체)은 미리보기와 함께 ``//`` 주석 줄로 쓴다.
     민감 키는 ``query_logger.mask()`` 로 먼저 가린다.
     """
-    # region [DB 설명] Cypher 파라미터와 :param
-    # Cypher의 `$brand`는 파라미터 자리이며, 드라이버가 `session.run(query, {"brand": ...})`로 값을 따로 전달한다.
-    # SQL의 바인딩 변수처럼 쿼리 문자열에 값을 이어 붙이지 않으므로 injection을 막고 쿼리 계획을 재사용할 수 있다.
-    # Neo4j Browser에서는 `:param brand => 'HYUNDAI';`로 파라미터를 미리 정한 뒤 같은 쿼리를 실행할 수 있다.
-    # 이 표현이 모든 Browser 버전에서 같은 타입으로 해석되는지는 검증하지 않았다.
+    # region Cypher 파라미터와 :param
     # endregion
     if not parameters:
         return query
@@ -356,11 +336,7 @@ def format_graph_value(value: Any) -> str:
     예: Node → ``(:Vehicle {brand: 'HYUNDAI'})``, Relationship → ``[:MADE_BY {since: 2020}]``,
     Path → ``(:A)-[:R]->(:B)`` (관계 방향이 반대면 ``<-[:R]-``).
     """
-    # region [DB 설명] Neo4j Node / Relationship / Path
-    # Node는 label 집합(`labels`)과 속성(`items()`)을 가진 그래프의 점이다(RDB의 행과 비슷).
-    # Relationship은 type(`type`)과 속성, 시작/끝 Node를 가진 방향 있는 연결선이다(RDB의 FK/조인 테이블 역할).
-    # Path는 Node와 Relationship이 번갈아 이어진 경로이며 `nodes`, `relationships`로 구성 요소를 읽는다.
-    # 드라이버가 돌려준 이 객체들은 `select_list()` 결과에 그대로 남고, 여기서는 로그 문자열만 만든다.
+    # region Neo4j Node / Relationship / Path
     # endregion
     types = _driver_types()
     if isinstance(value, types.Node):
@@ -404,10 +380,7 @@ def summary_counters(summary: Any) -> dict[str, int]:
     드라이버가 실제로 보고한 값만 담고 새로운 수치를 계산하지 않는다.
     읽는 중 오류가 나면 빈 dict를 반환한다(Mock 객체 등에서도 안전).
     """
-    # region [DB 설명] ResultSummary와 counters
-    # Neo4j는 쿼리 실행이 끝나면 `result.consume()`으로 ResultSummary를 돌려준다.
-    # `summary.counters`에는 nodes_created, properties_set처럼 이번 실행이 바꾼 그래프 요소 수가 들어 있다.
-    # PostgreSQL의 rowcount(영향받은 행 수)와는 의미가 다르므로 별도 항목으로 기록한다.
+    # region ResultSummary와 counters
     # endregion
     found = {}
     try:
@@ -432,6 +405,7 @@ def _server_ms(summary: Any, name: str) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+# Neo4j 세션과 트랜잭션 실행을 통합한다.
 class Neo4jDbSession(QuerySession):
     """``namespace.statement`` 이름의 Cypher를 주입받은 드라이버로 실행한다.
 
@@ -463,13 +437,7 @@ class Neo4jDbSession(QuerySession):
         한 인스턴스를 여러 thread가 동시에 트랜잭션에 사용하면 안 된다.
     """
 
-    # region [DB 설명] Neo4j Driver / Session / Transaction
-    # Driver: 애플리케이션 전체에서 하나를 만들어 공유하는 객체로, 내부에 연결 pool을 가진다(DataSource와 비슷).
-    # Session: `driver.session(database=...)`로 만드는 가벼운 작업 단위. 쿼리를 실행할 때 pool에서 연결을 빌린다.
-    #   `session.run(query, params)`는 쿼리 하나짜리 auto-commit 트랜잭션으로 실행된다.
-    # Transaction: `session.begin_transaction()`으로 시작하며, 여러 `tx.run()`을 하나로 묶어
-    #   `commit()` 또는 `rollback()`한다(JDBC에서 autoCommit=false 후 commit/rollback하는 것과 비슷).
-    # 이 클래스는 트랜잭션 밖에서는 호출마다 새 Session을, `transaction()` 안에서는 같은 Transaction을 사용한다.
+    # region Neo4j Driver / Session / Transaction
     # endregion
 
     def __init__(
@@ -567,10 +535,7 @@ class Neo4jDbSession(QuerySession):
             if not _IDENTIFIER.fullmatch(namespace):
                 raise ValueError(f"Invalid Cypher mapper namespace {namespace!r} in {path!r}")
             # 선언 줄 위치(match 객체)를 기준으로 파일 텍스트를 statement별로 잘라낸다.
-            # region [Python 설명] re.Match의 start()/end()와 문자열 slicing
-            # `header.end()`는 선언 줄이 끝나는 문자 위치, `headers[index + 1].start()`는 다음 선언 줄의 시작 위치다.
-            # `text[a:b]`는 a부터 b 직전까지의 부분 문자열이며, 마지막 statement는 파일 끝(`len(text)`)까지 사용한다.
-            # `.strip()`은 앞뒤 공백·빈 줄을 제거한다.
+            # region re.Match의 start()/end()와 문자열 slicing
             # endregion
             for index, header in enumerate(headers):
                 statement = header.group(1)
@@ -595,9 +560,7 @@ class Neo4jDbSession(QuerySession):
             ValueError: 점이 정확히 하나가 아니거나 식별자 규칙에 맞지 않는 경우.
             LookupError: 등록되지 않은 statement인 경우(원래 KeyError는 ``__cause__`` 로 연결).
         """
-        # region [Python 설명] raise ... from exc
-        # `raise LookupError(...) from exc`는 새 예외를 던지면서 원인 예외(KeyError)를 연결해 둔다.
-        # traceback에 "The above exception was the direct cause..."로 두 예외가 함께 표시된다(Java의 cause와 비슷).
+        # region raise ... from exc
         # endregion
         if not isinstance(statement_id, str) or statement_id.count(".") != 1:
             raise ValueError("statement_id must use namespace.statement format")
@@ -625,9 +588,7 @@ class Neo4jDbSession(QuerySession):
         로그 본문만 인라인 Cypher(또는 ``:param`` 대체)로 만들고, 실제 실행은 ``_consume()`` 의
         ``runner.run(query, bound_parameters)`` 바인딩 방식 그대로다.
         """
-        # region [Python 설명] lambda
-        # `lambda _: render_cypher_params(...)`는 인자 하나(`_`, 사용하지 않음)를 받는 이름 없는 함수다.
-        # QueryLogger가 combined 모드에서만 이 함수를 호출하므로, 다른 모드에서는 렌더링 비용이 없다.
+        # region lambda
         # endregion
         self.query_logger.log_query(
             statement_id, query, parameters,
@@ -648,11 +609,7 @@ class Neo4jDbSession(QuerySession):
         timings["cypher_log_ms"] = (fetch_started - log_started) * 1000
 
         # 쿼리는 한 번만 실행하며, 아래 레코드와 summary는 모두 이 하나의 result에서 나온다.
-        # region [DB 설명] Result 읽기 순서: keys() → 레코드 순회 → consume()
-        # `result.keys()`는 RETURN 절의 컬럼 이름이다. 쓰기 전용 쿼리(RETURN 없음)는 빈 목록이다.
-        # `list(result)`는 결과 레코드를 모두 받아 메모리에 담는다. result는 한 번만 순회할 수 있다.
-        # `result.consume()`은 남은 결과를 버리고 실행 통계(ResultSummary)를 반환한다.
-        # Session이 닫히면 result를 더 읽을 수 없으므로, with 블록 안에서 모두 읽어 둔다.
+        # region Result 읽기 순서: keys() → 레코드 순회 → consume()
         # endregion
         result = runner.run(query, bound_parameters)
         columns = result.keys()
@@ -788,10 +745,7 @@ class Neo4jDbSession(QuerySession):
         started = perf_counter()
 
         # 활성 트랜잭션이 있으면 아무 일도 하지 않는 context를, 없으면 새 트랜잭션 context를 사용한다.
-        # region [Python 설명] nullcontext와 조건부 with
-        # `contextlib.nullcontext(value)`는 진입 시 value를 돌려주고 종료 시 아무것도 하지 않는 context manager다.
-        # 두 경우 모두 `with scope:` 한 줄로 쓸 수 있어, 트랜잭션 유무에 따라 코드를 두 벌 만들지 않아도 된다.
-        # 새 트랜잭션이면 with 블록이 정상 종료될 때 commit, 예외가 나면 rollback된다.
+        # region nullcontext와 조건부 with
         # endregion
         scope = nullcontext(self) if self._active_transaction is not None else self.transaction()
         with scope:
@@ -842,10 +796,7 @@ class Neo4jDbSession(QuerySession):
             self._active_session = session
             self._active_transaction = transaction
             self.query_logger.log_transaction("BEGIN")
-            # region [Python 설명] contextmanager 안의 중첩 try
-            # 안쪽 첫 번째 try: with 블록에서 예외가 나면(`yield` 위치에서 발생) rollback 후 다시 던진다.
-            # 안쪽 두 번째 try: 블록이 정상 종료되면 commit하고, commit 실패 시 rollback을 시도한 뒤 다시 던진다.
-            # 바깥 try/finally: 어떤 경우든 활성 트랜잭션 상태를 None으로 되돌려 다음 트랜잭션을 허용한다.
+            # region contextmanager 안의 중첩 try
             # endregion
             try:
                 try:

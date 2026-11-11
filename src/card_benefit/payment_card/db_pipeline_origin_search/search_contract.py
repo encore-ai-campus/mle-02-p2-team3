@@ -11,6 +11,7 @@ PARTICLES = re.compile(r"(에서|에게|으로|에는|으로|까지|부터|이�
 STOPWORDS = frozenset({"카드", "혜택", "있는", "하는", "좋은", "무엇", "어떤", "있어", "알려줘", "서비스가"})
 
 
+# 개별 검색 후보의 점수와 출처를 보관한다.
 @dataclass
 class SearchHit:
     """A typed candidate returned by Neo4j keyword/vector fusion."""
@@ -32,6 +33,7 @@ class SearchHit:
     excluded_terms: list[str] = field(default_factory=list)
 
 
+# 검색 결과와 처리 지표를 묶는다.
 @dataclass
 class SearchOutcome:
     """Candidates plus timing and diagnostics from a Neo4j hybrid search."""
@@ -43,6 +45,7 @@ class SearchOutcome:
     engines: list[str] = field(default_factory=list)
 
 
+# 질문에서 검색에 사용할 단어를 추출한다.
 def search_terms(question: str) -> list[str]:
     """Extract distinct search tokens without inferring synonyms."""
     terms = []

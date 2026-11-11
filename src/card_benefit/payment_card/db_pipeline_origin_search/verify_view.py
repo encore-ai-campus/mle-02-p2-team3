@@ -30,6 +30,7 @@ def _show_statement(item: dict) -> None:
     st.json(item["parameters"], expanded=False)
 
 
+# 조회된 레코드를 검증 화면에 표시한다.
 def _show_records(statement_id: str, rows: list[dict]) -> None:
     """Cypher가 돌려준 레코드를 표로 표시한다."""
     st.markdown(f"**`{statement_id}`** · {len(rows)}건")
@@ -93,6 +94,7 @@ def _show_results(state: dict) -> None:
         st.text(text)
 
 
+# 질문 해석부터 답변까지 단계별 검증을 진행한다.
 def render(get_pipeline, show_outcome) -> None:
     """단계별 검증 화면. 자동 실행과 같은 노드 함수를 쓰고 LangGraph 흐름만 사용자가 진행한다.
 

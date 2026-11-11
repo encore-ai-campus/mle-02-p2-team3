@@ -15,8 +15,6 @@ from pathlib import Path
 import platform
 import re
 
-from dotenv import load_dotenv
-
 RAPIDOCR_MODEL_DIR_ENV = "RAPIDOCR_MODEL_DIR"
 RAPIDOCR_MODEL_FILES = {
     "Det.model_path": "ch_PP-OCRv5_det_mobile.onnx",
@@ -83,6 +81,7 @@ class RapidOcrEngine:
 
     def __init__(self, model_dir: str | Path | None = None):
         from rapidocr import LangRec, ModelType, OCRVersion, RapidOCR
+        from dotenv import load_dotenv
 
         load_dotenv()
         folder = model_dir or os.getenv(RAPIDOCR_MODEL_DIR_ENV)

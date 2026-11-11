@@ -1,20 +1,16 @@
-# file_pipeline — 파일 기반 처리 방식 (담당: 이현근)
+# file_pipeline
 
-현재 이 폴더에는 독립적인 `graphrag-chatbot/` 프로토타입이 있습니다. 기존 아래 계획과 별개로 확인된 구현은 `app.py`의 Streamlit 화면, `rag.py`의 Supabase PostgreSQL `nodes`/`edges` 재귀 탐색, `llm.py`의 LLM 연결, `graph_view.py`의 시각화, `supabase_schema.sql`과 `check_db.py`입니다. 상세 실행 방법은 [하위 README](graphrag-chatbot/README.md)를 확인하세요. 이 프로토타입이 카드 PDF 전체 추출이나 Neo4j 검색을 완료했다는 뜻은 아닙니다. 향후 독립 검색은 [file_pipeline_origin_search](../file_pipeline_origin_search/README.md)에서 팀원과 협의합니다.
+This candidate adds the core file processing path alongside the existing main-owned `graphrag-chatbot` prototype. The processing path is `doc_index` → `chunking` → `extraction` → `graph/export`. Graph export produces validated CSV files; database loading and chat integration are outside this candidate.
 
-카드 상품설명서 원본 파일을 Python으로 직접 처리해 파싱·추출·검증까지 수행하는 방식입니다.
-`db_pipeline/`(김병주)과 **같은 원천 문서를 다른 방식으로 처리하는 독립 구현**이며, 서로의 결과를 입력으로 쓰지 않습니다.
+## Runtime inputs
 
-개발 예정:
-- PDF 등 원본 파일 파싱 (먼저 `src/common/document_reader.py` 재사용 검토)
-- 텍스트·표 데이터 전처리, 정규식 기반 정보 추출
-- Python에서 LLM API 호출 → 엔티티·관계·카드 혜택 조건 추출
-- Python 기반 결과 검증 → 공통 형식의 구조화 결과(**결과 A**)
-- 참고: `graph-rag` 저장소의 `3_LLM식추출` 학습자료
+Operators must provide issuer manifests, index inputs, and source PDFs under their configured data directories. This change does not add manifests, PDFs, backups, credentials, or generated results. Tests use synthetic fixtures.
 
-규칙:
-- `db_pipeline/` 을 import하지 않습니다. 공통 모델·SQL은 `payment_card/` 최상위 것을 사용하고 복사하지 않습니다.
-- 첫 Python 모듈을 추가할 때 `__init__.py` 도 함께 만듭니다. 테스트는 `payment_card/tests/test_*.py` 에 둡니다.
-- 원천·샘플 문서는 `src/card_benefit/data/` 에 둡니다.
+## Modules
 
-상세: `src/card_benefit/docs/development_roles.md`
+- `doc_index/`: normalize issuer manifests and build document indexes. Both Hana and Woori adapters are imported by the CLI.
+- `chunking/`: create traceable chunks from indexed PDF inputs.
+- `extraction/`: validate schemas, run extraction, resume batches, and inspect results. The CLI imports `eval.variance` and exposes `result_a`, so those modules are included.
+- `graph/export.py`: validate chunk/result correspondence and publish graph CSV outputs.
+
+See the module READMEs for their inputs and commands.

@@ -196,7 +196,7 @@ INTERPRET_PROMPT = """카드 혜택 질문의 유형과 대상 혜택을 고른�
 {question}
 </question>"""
 
-# 답변 LLM 프롬프트. {context}에는 answer 노드가 만든 검색 결과 JSON(benefits·evidence·open_conditions 등)이 들어간다.
+# 답변 LLM 프롬프트. {context}에는 answer 노드가 만든 검색 결과 JSON(benefits·evidence·open_conditions…
 ANSWER_PROMPT = """카드 혜택 검색 결과로 고객의 질문에 답한다. 한국어로 쓰고 검색 결과만 사용한다.
 
 answer_text 작성 규칙 (고객이 읽는 설명문):
@@ -1319,6 +1319,7 @@ class CardGraphRAG:
                 "llm_trace_events": [], "started": perf_counter(), "question": question.strip(),
                 "error": None, "warnings": [], "llm_calls": [], "path": []}
 
+    # 질문을 State에 담아 그래프를 실행한다.
     def run(self, question: str, *, request_id: str | None = None, question_id: str | None = None,
             capture_diagnostics: bool = False) -> CardState:
         """사용자 질문을 입력받아 LangGraph 전체 파이프라인을 1회 동기 실행하고 최종 State를 반환한다."""
@@ -1439,7 +1440,7 @@ class CardGraphRAG:
             update["candidate_search"]["engines"] = [*outcome.engines, "neo4j_item_catalog"]
             update["warnings"] = [*outcome.warnings,
                                   f"??? ?? {len(fees)}?? ?? ??? ??? ??? ??? ??? ??? ?????(??? ??)."]
-        # Existing N-mode topic supplementation ensures named-card topics survive broad top-k ranking.
+        # Existing N-mode topic supplementation ensures named-card topics survive broad top-k…
         topic_candidate_ids = []
         explicit_topics = _requested_benefit_topics(question)
         if explicit_topics:

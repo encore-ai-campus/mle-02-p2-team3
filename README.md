@@ -365,6 +365,6 @@ uv run python src/card_benefit/payment_card/tests/evaluation_runner.py   # 연�
 
 ---
 
-과제 산출물 docs/M0-M9-과제산출물-정리.md
+[과제 산출물 docs/M0-M9-과제산출물-정리.md](https://github.com/encore-ai-campus/mle-02-p2-team3/blob/main/docs/M0-M9-%EA%B3%BC%EC%A0%9C%EC%82%B0%EC%B6%9C%EB%AC%BC-%EC%A0%95%EB%A6%AC.md)
 
 *이 README는 현재 코드베이스(`src/` 이하)와 검증 기록을 기반으로 작성되었습니다. 최신 변경 사항이 반영되지 않았다면 `git pull` 후 다시 검토해 주세요.*

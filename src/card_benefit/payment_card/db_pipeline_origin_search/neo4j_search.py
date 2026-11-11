@@ -390,6 +390,7 @@ def catalog_batch_plan() -> dict:
             "cypher": CATALOG_BATCH_QUERY, "parameters": {}, "browser_cypher": inline or CATALOG_BATCH_QUERY}
 
 
+# Neo4j 읽기 전용 조회를 수행한다.
 class Neo4jSearch:
     """dp_ 그래프 조회 객체. 드라이버와 대상 DB 이름을 갖고, 모든 공개 메서드는 _query를 거쳐 읽기 전용으로 실행한다."""
 
@@ -478,6 +479,7 @@ class Neo4jSearch:
             result[row["keyword"]].append(_ordered(row, LIST_FIELDS))
         return result
 
+    # 여러 혜택의 상세 정보와 근거를 일괄 조회한다.
     def get_details(self, keys: list[str], sections: tuple[str, ...] = ALL_SECTIONS) -> dict[str, dict | None]:
         """retrieve 단계에서 여러 혜택 상세를 key별 결과 맵으로 일괄 조회한다.
 

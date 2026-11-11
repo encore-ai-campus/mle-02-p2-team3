@@ -30,7 +30,7 @@ from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
-# Cloud dependency installs do not install the project in editable mode.
+# Cloud 배포 시 프로젝트 경로를 직접 추가한다.
 _SRC_DIR = Path(__file__).resolve().parents[3]
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
@@ -184,6 +184,7 @@ def show_open_items(outcome: dict, pages: dict) -> None:
         for text in notices:
             st.caption(plain(text))
 
+# 검색·답변 결과를 화면에 출력한다.
 def show_outcome(outcome: dict) -> None:
     """Render the final answer, its Evidence references, and developer diagnostics."""
     answer = outcome["answer"]
@@ -243,7 +244,7 @@ def show_outcome(outcome: dict) -> None:
 # region 페이지 본문 (Streamlit 재실행마다 위에서부터 실행되는 진입점)
 st.set_page_config(page_title="카드 혜택 안내", layout="wide")
 
-# Keep the answer readable on desktop while preserving left alignment.
+# 데스크톱에서도 답변을 왼쪽 정렬로 표시한다.
 st.markdown(
     """
     <style>

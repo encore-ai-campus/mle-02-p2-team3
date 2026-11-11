@@ -28,6 +28,7 @@ def log_event(log_type: str, message: str) -> LogEvent:
     return log_type, message, datetime.now(timezone.utc)
 
 
+# 답변 처리 결과에서 상세 로그를 만든다.
 def outcome_detail_text(outcome: dict | None) -> str | None:
     """Serialize the complete result data used by the detail section without rerunning retrieval."""
     if not outcome:
@@ -424,6 +425,7 @@ class SQLCaptureHandler(logging.Handler):
         super().close()
 
 
+# Cypher 실행 로그를 요청별로 수집한다.
 class CypherCaptureHandler(logging.Handler):
     """Cypher 전문은 요청 중에만 수집하고 warning/error는 stderr로 전달한다."""
 
@@ -475,6 +477,7 @@ def capture_request_queries():
         ACTIVE_QUERY_EVENTS.reset(token)
 
 
+# 요청 로그를 데이터베이스에 저장한다.
 def persist_app_logs(
     session_id: str,
     request_id: str,
@@ -532,7 +535,7 @@ def persist_app_logs(
                 parent = cursor.fetchone()
                 app_log_id = parent["app_log_id"] if isinstance(parent, dict) else parent[0]
                 if app_db_llm_trace_enabled() and llm_trace_events:
-                    # Keep the legacy app_log row even when the optional detail table is absent or fails.
+                    # 상세 로그 저장 실패 시에도 기본 app_log는 유지한다.
                     cursor.execute("SAVEPOINT app_log_llm_trace_write")
                     try:
                         cursor.execute(

@@ -63,9 +63,7 @@ class FakeClientCursor:
         return f"{sql} /* rendered {params!r} */"
 
 
-#=========================================================
 # QueryLogger
-#=========================================================
 class QueryLoggerSettingsTests(unittest.TestCase):
     """로그 모드·result_log_limit 검증과 logger 레벨 존중을 확인한다."""
 
@@ -235,9 +233,7 @@ class QueryLoggerOutputTests(unittest.TestCase):
         self.assertEqual(logs.output, ["WARNING:test.query_logger:RESULT DATA 로그 출력 실패 [a.b]: RuntimeError"])
 
 
-#=========================================================
 # PostgreSQL
-#=========================================================
 class PostgresLoggingTests(unittest.TestCase):
     """가짜 연결·가짜 aiosql 쿼리로 PostgresDbSession의 로그와 트랜잭션 동작을 확인한다."""
 
@@ -374,9 +370,7 @@ class PostgresLoggingTests(unittest.TestCase):
                     pass
 
 
-#=========================================================
 # Neo4j
-#=========================================================
 def neo4j_result(rows, columns=None, counters=None, available=None, consumed=None):
     """keys/레코드/consume() summary(counters, 서버 시간 포함)를 가진 가짜 Neo4j Result를 만든다."""
     result = MagicMock()
@@ -390,6 +384,7 @@ def neo4j_result(rows, columns=None, counters=None, available=None, consumed=Non
     return result
 
 
+# Neo4j 조회·트랜잭션 로그를 검증한다.
 class Neo4jLoggingTests(unittest.TestCase):
     """가짜 Driver로 Neo4jDbSession의 로그 형식, 반환값 보존, 트랜잭션 로그를 확인한다."""
 
@@ -435,7 +430,7 @@ class Neo4jLoggingTests(unittest.TestCase):
             ":param brand => 'HYUNDAI';\n:param limit => 10;\n:param password => '<MASKED>';\n\n"
             f"MATCH (v:Vehicle)\nWHERE v.brand = $brand\nRETURN v\nLIMIT $limit\n{LOG_DIVIDER}"
         ))
-        # The driver receives the query text and original values separately, exactly once.
+        # 드라이버에는 쿼리와 원본 파라미터를 한 번만 전달한다.
         self.db_session.run.assert_called_once_with(
             "MATCH (v:Vehicle)\nWHERE v.brand = $brand\nRETURN v\nLIMIT $limit", parameters)
         self.db_session.run.return_value.consume.assert_called_once()
@@ -582,9 +577,7 @@ class Neo4jLoggingTests(unittest.TestCase):
             logger.setLevel(previous)
 
 
-#=========================================================
 # 최종 검수에서 추가한 회귀 테스트
-#=========================================================
 class _RaisingFilter(logging.Filter):
     """고장 난 handler filter 흉내: needle이 포함된 로그 메시지마다 예외를 낸다."""
 
@@ -619,9 +612,7 @@ def broken_logger(name, needle=""):
 class PostgresSensitiveMaskingTests(unittest.TestCase):
     """sensitive_log_keys를 켰을 때 모든 PostgreSQL 로그 경로에서 비밀값이 노출되지 않는지 확인한다."""
 
-    # region [Python 설명] 다른 클래스의 함수를 클래스 속성으로 재사용
-    # 클래스 본문에서 `setUp = PostgresLoggingTests.setUp`처럼 함수를 대입하면 이 클래스의 메서드로 쓰인다.
-    # 상속하면 PostgresLoggingTests의 test_ 메서드까지 다시 실행되므로, 준비 코드만 가져오려고 이렇게 했다.
+    # region 다른 클래스의 함수를 클래스 속성으로 재사용
     # endregion
     setUp = PostgresLoggingTests.setUp
     tearDown = PostgresLoggingTests.tearDown
@@ -774,7 +765,7 @@ class Neo4jFailureSemanticsTests(unittest.TestCase):
     def test_commit_outcome_unknown_is_not_reported_as_rollback(self):
         from neo4j.exceptions import IncompleteCommit, TransactionError
         self.tx.commit.side_effect = IncompleteCommit("connection lost during commit")
-        # Real driver: commit() closes the transaction, so rollback() raises "Transaction closed".
+        # 커밋 후 트랜잭션이 종료되므로 롤백은 실패한다.
         self.tx.rollback.side_effect = TransactionError(self.tx, "Transaction closed")
         with self.assertLogs(NEO4J_LOGGER, "INFO") as logs, self.assertRaises(IncompleteCommit):
             with self.session.transaction():
@@ -1002,11 +993,7 @@ class CommonLoggerDependencyTests(unittest.TestCase):
 
     def test_query_logger_imports_without_database_packages(self):
         """neo4j/psycopg/pgvector/aiosql/sqlalchemy import를 막은 별도 프로세스에서 query_logger를 로드한다."""
-        # region [Python 설명] sys.meta_path로 import 막기와 subprocess
-        # `sys.meta_path`의 finder는 모듈을 찾을 때 먼저 호출된다. `find_spec`에서 ImportError를 내면
-        # 해당 패키지가 설치되어 있어도 import가 실패한 것처럼 만들 수 있다.
-        # 현재 테스트 프로세스에는 이미 import된 모듈이 남아 있으므로, `subprocess.run([sys.executable, "-c", code])`로
-        # 깨끗한 새 Python 프로세스에서 검사한다. `returncode == 0`이면 오류 없이 끝난 것이다.
+        # region sys.meta_path로 import 막기와 subprocess
         # endregion
         src = Path(__file__).resolve().parents[2]
         code = (

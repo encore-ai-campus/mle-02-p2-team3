@@ -22,6 +22,7 @@ class FakeSession:
     def execute_read(self, work): return work(self.tx)
 
 
+# 실제 DB 없이 Neo4j 조회 호출을 검증한다.
 class FakeDriver:
     def __init__(self, rows):
         self.tx, self.options = FakeTx(rows), []
@@ -30,6 +31,7 @@ class FakeDriver:
         return FakeSession(self.tx)
 
 
+# Cypher 조회 계약과 로그 형식을 검증한다.
 class SearchTests(unittest.TestCase):
     def test_queries_are_scoped_and_parameterized(self):
         for query in neo4j_search.QUERIES.values():
@@ -235,6 +237,7 @@ class SearchTests(unittest.TestCase):
         self.assertEqual(detail["rules"], [])
 
 
+# 설정된 경우 실제 Neo4j 읽기 조회를 검증한다.
 @unittest.skipUnless(os.getenv("RUN_NEO4J_INTEGRATION") == "1", "실제 Neo4j 읽기 테스트는 명시적으로 켠다")
 class LiveNeo4jTests(unittest.TestCase):
     """실제 PostgreSQL 테이블 매핑 그래프를 읽기 전용으로 확인한다."""

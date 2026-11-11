@@ -81,6 +81,7 @@ def _name_tokens(value: str) -> list[str]:
             if len(token) > 1 and token not in GENERIC_CARD_TOKENS]
 
 
+# 키워드·벡터 검색 결과를 RRF로 통합한다.
 class Neo4jBenefitSearch:
     """N 모드 검색 어댑터. Neo4j는 후보·유사도를 조회하고 Python은 키워드 점수와 RRF를 결합한다."""
     engine = ENGINE
@@ -95,6 +96,7 @@ class Neo4jBenefitSearch:
     def _run(self, statement_id, cypher, **params):
         return self.neo4j_search._run(statement_id, cypher, STATEMENTS[statement_id], params)
 
+    # 질문에서 후보를 검색하고 상위 결과를 반환한다.
     def search(self, question: str, top_k: int = 5, use_graph: bool = True) -> SearchOutcome:
         """N 모드 후보 검색을 수행하고, 카드 식별·키워드/벡터 랭킹·RRF·우선순위 보정을 적용한다.
 
